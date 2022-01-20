@@ -3,4 +3,4 @@ config.py
 /ignore
 /.idea
 /logs
-/__pycahce__
+**/__pycache__
