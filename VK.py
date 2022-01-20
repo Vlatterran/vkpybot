@@ -7,15 +7,15 @@ import json
 import logging
 import logging.handlers
 import random
+import sys
 import time
 import typing
 from functools import lru_cache, update_wrapper
 
 import aiohttp
 import docstring_parser
+import requests
 from aiohttp import web
-
-
 
 
 async def get(url, params):
@@ -58,22 +58,22 @@ class Session:
             params = {}
         return await get(f'{self.__base_url}{method}', params | self.session_params)
 
-    # def method_sync(self, method: str, params: typing.Optional[dict] = None) -> dict:
-    #     """
-    #     Base method for accessing VK_API (synchronous)
-    #
-    #     Args:
-    #         method: method of VK_API
-    #         params: params of request to VK_API
-    #
-    #     Returns:
-    #         JSON-response from VK_API
-    #     """
-    #     if params is None:
-    #         params = dict()
-    #     url = f'{self.__base_url}{method}'
-    #     params |= self.session_params
-    #     return requests.get(url, params).json()
+    def method_sync(self, method: str, params: typing.Optional[dict] = None) -> dict:
+        """
+        Base method for accessing VK_API (synchronous)
+
+        Args:
+            method: method of VK_API
+            params: params of request to VK_API
+
+        Returns:
+            JSON-response from VK_API
+        """
+        if params is None:
+            params = dict()
+        url = f'{self.__base_url}{method}'
+        params |= self.session_params
+        return requests.get(url, params).json()
 
     @property
     def cache(self):
@@ -166,9 +166,34 @@ class Session:
             Session._chats_cache[chat_id] = Chat(chat_dict, self)
         return Session._chats_cache[chat_id]
 
-    async def get_long_poll_server(self):
-        server_config = (await self.method('groups.getLongPollServer'))['response']
-        return LongPollServer(self, **server_config)
+    async def execute(self, code: str, func_v: int = 1) -> dict:
+        return await self.method('execute', {'code': code, 'func_v': func_v})
+
+    async def get_by_conversation_message_id(self, chat_id: int, message_ids: int | list[int],
+                                             extended: bool = False):
+        params = {
+            'peer_ids': chat_id,
+            'conversation_message_ids': [message_ids] if isinstance(message_ids, int) else list(message_ids),
+            'extended': int(extended)
+        }
+        ids = params['conversation_message_ids']
+        code = f'''
+var messages = API.messages.getByConversationMessageId({{"conversation_message_ids": {ids}, 'peer_id':{chat_id}}});
+var chats = API.messages.getConversationById({{
+"group_id": {self.session_params['group_id']},
+"peer_ids": messages.items@.peer_id
+}});
+var user_ids = chats.items@.chat_settings@.owner_id.concat(chats.items@.chat_settings@.admin_ids);
+var users = API.users.get({{"user_ids":user_ids}});
+return {{"message":messages.items[0],
+ "chat":chats.items[0],
+  "users":users,
+   "user": user_ids}};'''
+        from pprint import pprint
+        print(code)
+        print(await self.method('messages.getConversationsById', params))
+        pprint(a := await self.execute(code))
+        return a
 
 
 class User:
@@ -297,7 +322,7 @@ class Message:
     def __repr__(self):
         return f'<{str(self)}>'
 
-    async def reply(self, text: str = '', attachments: list = None, sticker: typing.Optional[int] = None):
+    async def reply(self, text: str = '', attachments: list | None = None, sticker: int | None = None):
         """
 
         Args:
@@ -457,7 +482,6 @@ class AccessLevel(enum.IntEnum):
     USER = enum.auto()
     ADMIN = enum.auto()
     BOT_ADMIN = enum.auto()
-    DEBUG = enum.auto()
 
 
 class Bot(EventHandler):
@@ -469,11 +493,22 @@ class Bot(EventHandler):
     """
 
     def __init__(self, access_token: str,
-                 group_id, bot_admin: int,
+                 group_id: int,
+                 bot_admin_id: int,
                  session: Session = None,
                  event_server: 'EventServer' = None,
                  log_file='',
                  loglevel=logging.INFO):
+        """
+        Args:
+            access_token: API_TOKEN for group
+            group_id: ID of group
+            bot_admin_id: ID of user, who will have maximum access_level
+            session:
+            event_server:
+            log_file:
+            loglevel:
+        """
         super().__init__()
         log_file = f'logs/{log_file}'
         self.server: EventServer = event_server
@@ -481,8 +516,8 @@ class Bot(EventHandler):
             self.session = GroupSession(access_token=access_token, group_id=group_id)
         else:
             self.session = session
-        self.bot_admin: int = bot_admin
-        self.commands: CommandHandler = CommandHandler()
+        self.bot_admin: int = bot_admin_id
+        self.commands: CommandHandler = CommandHandler(bot_admin=bot_admin_id)
         self.aliases: dict[str, str] = {}
         log_form = "{asctime} - [{levelname}] - ({filename}:{lineno}).{funcName} - {message}"  # noqa
         logging.StreamHandler().setFormatter(logging.Formatter(log_form, style='{'))
@@ -506,28 +541,24 @@ class Bot(EventHandler):
         async def help_command(message: Message, command: str = ''):
             if command == '':
                 a = '\n'
-                await message.reply(f'Доступные команды: \n{a.join(map(lambda x: x.name, self.commands))}')
+                s = ', '
+                await message.reply(
+                    f'Доступные команды: \n{a.join(map(lambda x: f"{x.name} ({s.join(x.aliases)})", self.commands))}'
+                )
             elif command in self.commands.aliases:
                 await message.reply(self.commands[command].help)
+            else:
+                await message.reply(f"Command \"{command}\" doesn't exist")
 
     def start(self):
         """
         Function that stars event loop of bot
         """
-        if isinstance(self.server, CallBackServer):
-            self.server.bind_listener(self)
-            self.server.listen()
-        else:
-            asyncio.run(self.run())
-
-    async def run(self):
-        """
-        Function that contains main loop
-        """
         if self.server is None:
-            self.server = await self.session.get_long_poll_server()
+            self.server = LongPollServer(self.session,
+                                         **self.session.method_sync('groups.getLongPollServer')['response'])
         self.server.bind_listener(self)
-        await self.server.listen()
+        self.server.listen()
 
     async def on_message_new(self, message: Message, client_info: dict):
         logging.info(message)
@@ -553,6 +584,7 @@ class Bot(EventHandler):
             names: additional names of the command
             access_level: minimal access level of user to use command
             message_if_deny: text, that will be sent to user if his access_level less than command's access_level
+            use_doc:
         """
 
         def wrapper(func) -> 'Command':
@@ -563,7 +595,10 @@ class Bot(EventHandler):
             Returns:
                 Command-object created from function
             """
-            self.add_command(command := Command(func, name, names, access_level, message_if_deny, use_doc))
+            kwargs = {}
+            if message_if_deny is not None:
+                kwargs['message_if_deny'] = message_if_deny
+            self.add_command(command := Command(func, name, names, access_level, use_doc=use_doc, **kwargs))
             return command
 
         return wrapper
@@ -637,23 +672,31 @@ class GroupSession(Session):
     """
 
     @lru_cache
-    def __init__(self, access_token: str, group_id: int, api_version: int = 5.126):
+    def __init__(self, access_token: str, group_id: int, api_version: float = 5.126):
         """
 
-        :param access_token: GROUP_API_TOKEN for VK_API
-        :param group_id: id of group you are logging in to
-        :param api_version: version af VK_API that you use
+        Args:
+            access_token: GROUP_API_TOKEN for VK_API
+            group_id: id of group you are logging in to
+            api_version: version af VK_API that you use
         """
         super().__init__(access_token, api_version)
         self.session_params |= {'group_id': group_id}
 
+    async def get_long_poll_server(self):
+        return LongPollServer(self, **await self.get_long_poll_server_row())
+
+    async def get_long_poll_server_row(self):
+        server_config = (await self.method('groups.getLongPollServer'))['response']
+        return server_config
+
 
 class Command:
     """
-    Class, that added to func-commands features as:\n
-    -checking user's permission to use command \n
-    -auto-generated help-string for help-command \n
-    -auto-replying if access denied \n
+    Class, that added to func-commands features as:
+    -checking user's permission to use command
+    -auto-generated help-string for help-command
+    -auto-replying if access denied
     """
 
     def __init__(self,
@@ -712,9 +755,7 @@ class Command:
         Returns:
 
         """
-        if message.chat.title == 'ЛС':
-            return True
-        if message.sender in message.chat.admins:
+        if message.chat.title == 'ЛС' or message.sender in message.chat.admins:
             user_access_level = AccessLevel.ADMIN
         else:
             user_access_level = AccessLevel.USER
@@ -723,7 +764,7 @@ class Command:
     async def __call__(self, message: Message) -> None:
         if self._check_permissions(message):
             try:
-                # self.parser.print_help(sys.stdout)
+                self.parser.print_help(sys.stdout)
                 args = vars(self.parser.parse_args(message.text.split()[1:]))
                 await self._func(message, **args)
             except SystemExit:
@@ -735,11 +776,16 @@ class Command:
     def names(self) -> list[str]:
         return [self.name, *self._names]
 
+    @property
+    def aliases(self):
+        return self._names
+
     def _convert_signature_to_help(self, use_doc: bool = False) -> str:
         """
         Converting the signature of the command function to the help-string, that will be used by standard help-command
+
         Returns:
-            str
+
             Команда: {name}
 
             Альтернативные названия: {names} #only if alternative names exists
@@ -781,13 +827,15 @@ class Command:
 
 
 class CommandHandler:
-    def __init__(self):
+    def __init__(self, bot_admin):
+        self.bot_admin = bot_admin
         self._aliases: dict[str, Command] = {}
 
     def add_command(self, command: Command):
         for name in command.names:
             if name in self._aliases:
                 raise ValueError(f"Command with alias {name} already exist")
+        command.bot_admin = self.bot_admin
         for name in command.names:
             self._aliases[name] = command
 
@@ -852,6 +900,10 @@ class EventServer(abc.ABC):
                             'client_info': event['object']['client_info']}
         return event_type, context
 
+    @abc.abstractmethod
+    def listen(self):
+        pass
+
 
 class CallBackServer(EventServer):
     def __init__(self, vk_session: Session, host='localhost', port=8080):
@@ -866,7 +918,7 @@ class CallBackServer(EventServer):
             if req['type'] == 'confirmation':
                 code = (await self.vk_session.method('groups.getCallbackConfirmationCode'))['response']['code']
                 print(code)
-                return web.Response(text='a1d2da46')
+                return web.Response(text=code)
             else:
                 self.add_task(self.notify_listeners(req))
                 return web.Response(text='ok')
@@ -884,15 +936,6 @@ class LongPollServer(EventServer):
         self.server = server
         self.key = key
         self.ts = ts
-
-    # def get_long_poll_server(self):
-    #     try:
-    #         long_poll_serv = self.vk_session.method_sync('groups.getLongPollServer')['response']
-    #         self.server = long_poll_serv['server']
-    #         self.key = long_poll_serv['key']
-    #         self.ts = long_poll_serv['ts']
-    #     except KeyError:
-    #         logging.exception("Can't get a LongPollServer")
 
     async def check(self) -> typing.AsyncIterable[tuple[Event, typing.Dict]]:
         """
@@ -930,13 +973,10 @@ class LongPollServer(EventServer):
             for event in events:
                 yield event
 
-    async def listen(self) -> None:
-        """
-        Infinity generator that checking for new events
-        Yields:
-            tuple
-                event and context dictionary
-        """
+    def listen(self) -> None:
+        asyncio.run(self._listen())
+
+    async def _listen(self) -> None:
         try:
             while True:
                 async for event in self.check():
@@ -946,7 +986,7 @@ class LongPollServer(EventServer):
             await asyncio.gather(self.tasks)
 
     async def __update(self):
-        _new = await self.vk_session.get_long_poll_server()
-        self.server = _new.server
-        self.key = _new.key
-        self.ts = _new.ts
+        new = await self.vk_session.get_long_poll_server_row()
+        self.server = new['server']
+        self.key = new['key']
+        self.ts = new['ts']
