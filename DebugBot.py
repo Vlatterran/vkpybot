@@ -1,10 +1,8 @@
-import asyncio
 import logging
 import time
 
 import VK
 from config import token, group_id as group, bot_admin as admin
-import sys
 
 # session = VK.GroupSession(token, group)
 # server = VK.CallBackServer(session, '192.168.10.96', '8080')
@@ -36,5 +34,11 @@ async def test(message: VK.Message, a, b: int = 1, c: float = .1, d: str = 'D', 
     time.sleep(10)
     await message.reply(f'{message.chat}')
     # print(await bot.session.get_by_conversation_message_id(message.chat.id, message.conversation_message_id))
+
+
+@bot.regex('test')
+async def test(message: VK.Message):
+    await message.reply('it works')
+
 
 bot.start()

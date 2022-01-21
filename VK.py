@@ -7,6 +7,7 @@ import json
 import logging
 import logging.handlers
 import random
+import re
 import sys
 import time
 import typing
@@ -518,6 +519,7 @@ class Bot(EventHandler):
             self.session = session
         self.bot_admin: int = bot_admin_id
         self.commands: CommandHandler = CommandHandler(bot_admin=bot_admin_id)
+        self.regexes: RegexHandler = RegexHandler()
         self.aliases: dict[str, str] = {}
         log_form = "{asctime} - [{levelname}] - ({filename}:{lineno}).{funcName} - {message}"  # noqa
         logging.StreamHandler().setFormatter(logging.Formatter(log_form, style='{'))
@@ -537,6 +539,7 @@ class Bot(EventHandler):
         #                                                                          when='midnight',
         #                                                                          interval=1))
 
+        # TODO: Add RegexHandler to the help
         @self.command('help')
         async def help_command(message: Message, command: str = ''):
             if command == '':
@@ -564,6 +567,7 @@ class Bot(EventHandler):
         logging.info(message)
         if len(message.text) > 1 and message.text[0] == '!':
             await self.commands.handle_command(message)
+        await self.regexes.handle_regex(message)
 
     async def on_message_edit(self, message: Message):
         logging.info(
@@ -573,6 +577,9 @@ class Bot(EventHandler):
 
     def add_command(self, command: 'Command'):
         self.commands.add_command(command)
+
+    def add_regex(self, regex: 'Regex'):
+        self.regexes.add_regex(regex)
 
     def command(self, name: str = '', names: list[str] = None, access_level: AccessLevel = AccessLevel.USER,
                 message_if_deny: str = None, use_doc=False):
@@ -600,6 +607,13 @@ class Bot(EventHandler):
                 kwargs['message_if_deny'] = message_if_deny
             self.add_command(command := Command(func, name, names, access_level, use_doc=use_doc, **kwargs))
             return command
+
+        return wrapper
+
+    def regex(self, regular_expression: str):
+        def wrapper(func):
+            self.add_regex(regex := Regex(func, regular_expression))
+            return regex
 
         return wrapper
 
@@ -866,6 +880,29 @@ class CommandHandler:
         except TypeError as e:
             await message.reply(f'Unexpected arguments for {command} command')
             logging.info(e)
+
+
+class Regex:
+    def __init__(self, func: typing.Callable[[Message], typing.Awaitable], regular_expression: str):
+        self.regex = re.compile(regular_expression)
+        update_wrapper(self, func)
+        self._func = func
+
+    async def __call__(self, message: Message):
+        if re.match(self.regex, message.text):
+            await self._func(message)
+
+
+class RegexHandler:
+    def __init__(self):
+        self.regexes = []
+
+    def add_regex(self, regex: Regex):
+        self.regexes.append(regex)
+
+    async def handle_regex(self, message: Message):
+        for r in self.regexes:
+            await r(message)
 
 
 class EventServer(abc.ABC):
