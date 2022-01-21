@@ -495,7 +495,7 @@ class Bot(EventHandler):
     def __init__(self, access_token: str,
                  group_id: int,
                  bot_admin_id: int,
-                 session: Session = None,
+                 session: 'GroupSession' = None,
                  event_server: 'EventServer' = None,
                  log_file='',
                  loglevel=logging.INFO):
@@ -714,6 +714,7 @@ class Command:
             access_level: minimal access level of user to use command
             message_if_deny: text, that will be sent to user if his access_level less than command's access_level
         """
+        self.bot_admin = 0
         if names is None:
             names: list[str] = []
         if name is None or name == '':
@@ -755,7 +756,9 @@ class Command:
         Returns:
 
         """
-        if message.chat.title == 'ЛС' or message.sender in message.chat.admins:
+        if message.sender.id == self.bot_admin:
+            user_access_level = AccessLevel.BOT_ADMIN
+        elif message.chat.title == 'ЛС' or message.sender in message.chat.admins:
             user_access_level = AccessLevel.ADMIN
         else:
             user_access_level = AccessLevel.USER
@@ -866,7 +869,7 @@ class CommandHandler:
 
 
 class EventServer(abc.ABC):
-    def __init__(self, vk_session: Session):
+    def __init__(self, vk_session: GroupSession):
         self.vk_session = vk_session
         self.listeners: list[EventHandler] = []
         self.tasks: list[asyncio.Task] = []
