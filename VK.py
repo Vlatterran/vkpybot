@@ -1,3 +1,4 @@
+import asyncio
 import enum
 import inspect
 import json
@@ -10,7 +11,7 @@ from asyncio import Task, run, gather, create_task
 from functools import lru_cache, update_wrapper
 from random import randint
 from time import localtime, strftime, struct_time
-from typing import Optional, Awaitable, Dict, AsyncIterable, Sequence, Callable
+from typing import Optional, Awaitable, Dict, AsyncIterable, Sequence, Callable, Any
 
 import aiohttp
 import docstring_parser
@@ -540,7 +541,7 @@ class Bot(EventHandler):
 
         # TODO: Add RegexHandler to the help
         @self.command('help')
-        async def help_command(command: str = ''):
+        def help_command(command: str = ''):
             if command == '':
                 a = '\n'
                 return f'Доступные команды: \n{a.join([x.short_help for x in self.commands])}'
@@ -574,8 +575,12 @@ class Bot(EventHandler):
     def add_regex(self, regex: 'Regex'):
         self.regexes.add_regex(regex)
 
-    def command(self, name: str = '', names: list[str] = None, access_level: AccessLevel = AccessLevel.USER,
-                message_if_deny: str = None, use_doc=False):
+    def command(self,
+                name: str = '',
+                names: list[str] = None,
+                access_level: AccessLevel = AccessLevel.USER,
+                message_if_deny: str = None,
+                use_doc=False):
         """
         Decorator, that converts function to the Command-object
 
@@ -587,7 +592,7 @@ class Bot(EventHandler):
             use_doc:
         """
 
-        def wrapper(func) -> 'Command':
+        def wrapper(func: Callable[[...], Awaitable] | Callable[[...], Any]) -> 'Command':
             """
 
             Args:
@@ -707,7 +712,7 @@ class Command:
     """
 
     def __init__(self,
-                 func: Callable[[...], Awaitable],
+                 func: Callable[[...], Awaitable] | Callable[[...], Any],
                  name: str = None,
                  aliases: list[str] = None,
                  access_level: AccessLevel = AccessLevel.USER,
@@ -753,6 +758,7 @@ class Command:
                                       )
             # print(arg)
         # parser.print_help(sys.stdout)
+        self.__is_coroutine = asyncio.iscoroutinefunction(func)
         self.parser = parser
         self.names = [self.name, *self.aliases]
         self.help = self._convert_signature_to_help(use_doc)
@@ -782,7 +788,10 @@ class Command:
                 args = vars(self.parser.parse_args(message.text.split()[1:]))
                 if self._use_message:
                     args['message'] = message
-                result = await self._func(**args)
+                if self.__is_coroutine:
+                    result = await self._func(**args)
+                else:
+                    result = self._func(**args)
                 if isinstance(result, str):
                     await message.reply(result)
             except SystemExit:
