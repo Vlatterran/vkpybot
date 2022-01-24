@@ -352,39 +352,39 @@ class EventHandler:
 
     def __init__(self):
         self.__event_handler = {
-            Event.MESSAGE_NEW: self.on_message_new,
-            Event.MESSAGE_EDIT: self.on_message_edit,
-            Event.MESSAGE_REPLY: self.on_message_reply,
-            Event.MESSAGE_ALLOW: self.on_message_allow,
-            Event.MESSAGE_DENY: self.on_message_deny,
-            # Event.MESSAGE_TYPING_STATE: self.on_message_typing_state,
-            Event.MESSAGE_EVENT: self.on_message_event,
-            Event.PHOTO_NEW: self.on_photo_new,
-            Event.PHOTO_COMMENT_NEW: self.on_photo_comment_new,
-            Event.PHOTO_COMMENT_EDIT: self.on_photo_comment_edit,
-            Event.PHOTO_COMMENT_RESTORE: self.on_photo_comment_restore,
-            Event.PHOTO_COMMENT_DELETE: self.on_photo_comment_delete,
-            Event.AUDIO_NEW: self.on_audio_new,
-            Event.VIDEO_NEW: self.on_video_new,
-            Event.VIDEO_COMMENT_NEW: self.on_video_comment_new,
-            Event.VIDEO_COMMENT_EDIT: self.on_video_comment_edit,
-            Event.VIDEO_COMMENT_RESTORE: self.on_video_comment_restore,
-            Event.VIDEO_COMMENT_DELETE: self.on_video_comment_delete,
-            Event.WALL_POST_NEW: self.on_wall_post_new,
-            Event.WALL_REPOST: self.on_wall_repost,
-            Event.WALL_REPLY_NEW: self.on_wall_reply_new,
-            Event.WALL_REPLY_EDIT: self.on_wall_reply_edit,
-            Event.WALL_REPLY_RESTORE: self.on_wall_reply_restore,
-            Event.WALL_REPLY_DELETE: self.on_wall_reply_delete,
-            Event.LIKE_ADD: self.on_like_add,
-            Event.LIKE_REMOVE: self.on_like_remove,
-            Event.BOARD_POST_NEW: self.on_board_post_new,
-            Event.BOARD_POST_EDIT: self.on_board_post_edit,
-            Event.BOARD_POST_RESTORE: self.on_board_post_delete,
-            Event.BOARD_POST_DELETE: self.on_board_post_delete
+            EventType.MESSAGE_NEW: self.on_message_new,
+            EventType.MESSAGE_EDIT: self.on_message_edit,
+            EventType.MESSAGE_REPLY: self.on_message_reply,
+            EventType.MESSAGE_ALLOW: self.on_message_allow,
+            EventType.MESSAGE_DENY: self.on_message_deny,
+            # EventType.MESSAGE_TYPING_STATE: self.on_message_typing_state,
+            EventType.MESSAGE_EVENT: self.on_message_event,
+            EventType.PHOTO_NEW: self.on_photo_new,
+            EventType.PHOTO_COMMENT_NEW: self.on_photo_comment_new,
+            EventType.PHOTO_COMMENT_EDIT: self.on_photo_comment_edit,
+            EventType.PHOTO_COMMENT_RESTORE: self.on_photo_comment_restore,
+            EventType.PHOTO_COMMENT_DELETE: self.on_photo_comment_delete,
+            EventType.AUDIO_NEW: self.on_audio_new,
+            EventType.VIDEO_NEW: self.on_video_new,
+            EventType.VIDEO_COMMENT_NEW: self.on_video_comment_new,
+            EventType.VIDEO_COMMENT_EDIT: self.on_video_comment_edit,
+            EventType.VIDEO_COMMENT_RESTORE: self.on_video_comment_restore,
+            EventType.VIDEO_COMMENT_DELETE: self.on_video_comment_delete,
+            EventType.WALL_POST_NEW: self.on_wall_post_new,
+            EventType.WALL_REPOST: self.on_wall_repost,
+            EventType.WALL_REPLY_NEW: self.on_wall_reply_new,
+            EventType.WALL_REPLY_EDIT: self.on_wall_reply_edit,
+            EventType.WALL_REPLY_RESTORE: self.on_wall_reply_restore,
+            EventType.WALL_REPLY_DELETE: self.on_wall_reply_delete,
+            EventType.LIKE_ADD: self.on_like_add,
+            EventType.LIKE_REMOVE: self.on_like_remove,
+            EventType.BOARD_POST_NEW: self.on_board_post_new,
+            EventType.BOARD_POST_EDIT: self.on_board_post_edit,
+            EventType.BOARD_POST_RESTORE: self.on_board_post_delete,
+            EventType.BOARD_POST_DELETE: self.on_board_post_delete
         }
 
-    async def __call__(self, event: 'Event', context: dict):
+    async def __call__(self, event: 'EventType', context: dict):
         if event in self.__event_handler:
             await self.__event_handler[event](**context)
 
@@ -614,7 +614,7 @@ class Bot(EventHandler):
         return wrapper
 
 
-class Event(enum.Enum):
+class EventType(enum.Enum):
     """
     Represents events from VK_BOT_API
     """
@@ -923,11 +923,11 @@ class EventServer(ABC):
         for listener in self.listeners:
             await listener(event, context)
 
-    async def parse_event(self, event) -> tuple[Event, dict]:
-        event_type: Event = Event[event['type'].upper()]
+    async def parse_event(self, event) -> tuple[EventType, dict]:
+        event_type: EventType = EventType[event['type'].upper()]
         context = {}
         match event_type:
-            case Event.MESSAGE_NEW:
+            case EventType.MESSAGE_NEW:
                 message_dict = event['object']['message']
                 _wait_users = create_task(self.vk_session.get_users(message_dict['from_id']))
                 _wait_chat = create_task(self.vk_session.get_chat(message_dict['peer_id']))
@@ -977,7 +977,7 @@ class LongPollServer(EventServer):
         self.key = key
         self.ts = ts
 
-    async def check(self) -> AsyncIterable[tuple[Event, Dict]]:
+    async def check(self) -> AsyncIterable[tuple[EventType, Dict]]:
         """
         Checks for new events on long_poll_server, updates long_poll_server information if failed to get events
 
@@ -1030,3 +1030,4 @@ class LongPollServer(EventServer):
         self.server = new['server']
         self.key = new['key']
         self.ts = new['ts']
+
