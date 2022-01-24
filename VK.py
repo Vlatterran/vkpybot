@@ -8,7 +8,6 @@ import logging
 import logging.handlers
 import random
 import re
-import sys
 import time
 import typing
 from functools import lru_cache, update_wrapper
@@ -495,7 +494,7 @@ class Bot(EventHandler):
 
     def __init__(self, access_token: str,
                  group_id: int,
-                 bot_admin_id: int,
+                 bot_admin_id: int = 0,
                  session: 'GroupSession' = None,
                  event_server: 'EventServer' = None,
                  log_file='',
@@ -541,17 +540,15 @@ class Bot(EventHandler):
 
         # TODO: Add RegexHandler to the help
         @self.command('help')
-        async def help_command(message: Message, command: str = ''):
+        async def help_command(command: str = ''):
             if command == '':
                 a = '\n'
                 s = ', '
-                await message.reply(
-                    f'Доступные команды: \n{a.join(map(lambda x: f"{x.name} ({s.join(x.aliases)})", self.commands))}'
-                )
+                return f'Доступные команды: \n{a.join(map(lambda x: f"{x.name} ({s.join(x.aliases)})", self.commands))}'
             elif command in self.commands.aliases:
-                await message.reply(self.commands[command].help)
+                return self.commands[command].help
             else:
-                await message.reply(f"Command \"{command}\" doesn't exist")
+                return f"Command \"{command}\" doesn't exist"
 
     def start(self):
         """
@@ -741,8 +738,10 @@ class Command:
         self._names = names
         self.access_level = access_level
         parser = argparse.ArgumentParser(description=f'Command {self.name}', exit_on_error=False)
+        self._use_message = False
         for name, param in inspect.signature(self).parameters.items():
             if name == 'message':
+                self._use_message = True
                 continue
             annotation = param.annotation
             if param.annotation is param.empty:
@@ -781,9 +780,13 @@ class Command:
     async def __call__(self, message: Message) -> None:
         if self._check_permissions(message):
             try:
-                self.parser.print_help(sys.stdout)
+                # self.parser.print_help(sys.stdout)
                 args = vars(self.parser.parse_args(message.text.split()[1:]))
-                await self._func(message, **args)
+                if self._use_message:
+                    args['message'] = message
+                result = await self._func(**args)
+                if isinstance(result, str):
+                    await message.reply(result)
             except SystemExit:
                 await message.reply(f'Invalid arguments for command {self.name}')
         elif self.message_if_deny:
@@ -946,7 +949,7 @@ class EventServer(abc.ABC):
 
 
 class CallBackServer(EventServer):
-    def __init__(self, vk_session: Session, host='localhost', port=8080):
+    def __init__(self, vk_session: GroupSession, host='localhost', port=8080):
         super().__init__(vk_session)
         self.host = host
         self.port = port
@@ -971,7 +974,7 @@ class CallBackServer(EventServer):
 
 
 class LongPollServer(EventServer):
-    def __init__(self, vk_session: Session, server: str, key: str, ts: int):
+    def __init__(self, vk_session: GroupSession, server: str, key: str, ts: int):
         super().__init__(vk_session)
         self.server = server
         self.key = key
