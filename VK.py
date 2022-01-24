@@ -502,7 +502,6 @@ class Bot(EventHandler):
         """
         Args:
             access_token: API_TOKEN for group
-            group_id: ID of group
             bot_admin_id: ID of user, who will have maximum access_level
             session:
             event_server:
