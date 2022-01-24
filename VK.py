@@ -821,17 +821,18 @@ class Command:
             res += f'{documentation.short_description}\n'
         if len(self.aliases) > 0:
             res += f'Альтернативные названия: {", ".join(self.aliases)}' if self.aliases else ''
-        res += '\nАргументы:\n'
-        for name, param in inspect.signature(self).parameters.items():
-            if name == 'message':
-                continue
-            # print(param.annotation)
-            res += f'{name} - {annotations[param.annotation]}'
-            if param.default is not param.empty:
-                res += f' (значение по умолчанию: {param.default!r})'
-            if documentation:
-                res += f'\n{[*filter(lambda x: x.arg_name == name, documentation.params)][0].description}'
-            res += '\n'
+        if params := inspect.signature(self).parameters.items():
+            res += '\nАргументы:\n'
+            for name, param in params:
+                if name == 'message':
+                    continue
+                # print(param.annotation)
+                res += f'{name} - {annotations[param.annotation]}'
+                if param.default is not param.empty:
+                    res += f' (значение по умолчанию: {param.default!r})'
+                if documentation:
+                    res += f'\n{[*filter(lambda x: x.arg_name == name, documentation.params)][0].description}'
+                res += '\n'
 
         return res
 
