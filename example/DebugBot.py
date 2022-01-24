@@ -37,7 +37,7 @@ async def test(message: VK.Message, a, b: int = 1, c: float = .1, d: str = 'D', 
 
 
 @bot.command('echo')
-async def echo():
+def echo():
     return 'echo'
 
 

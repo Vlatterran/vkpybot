@@ -494,7 +494,6 @@ class Bot(EventHandler):
     """
 
     def __init__(self, access_token: str,
-                 group_id: int,
                  bot_admin_id: int = 0,
                  session: 'GroupSession' = None,
                  event_server: 'EventServer' = None,
@@ -514,7 +513,7 @@ class Bot(EventHandler):
         log_file = f'logs/{log_file}'
         self.server: EventServer = event_server
         if session is None:
-            self.session = GroupSession(access_token=access_token, group_id=group_id)
+            self.session = GroupSession(access_token=access_token)
         else:
             self.session = session
         self.bot_admin: int = bot_admin_id
@@ -592,7 +591,7 @@ class Bot(EventHandler):
             use_doc:
         """
 
-        def wrapper(func: Callable[[...], Awaitable] | Callable[[...], Any]) -> 'Command':
+        def wrapper(func: Callable[[...], Awaitable] | Callable[[...], str | None]) -> 'Command':
             """
 
             Args:
@@ -684,16 +683,15 @@ class GroupSession(Session):
     """
 
     @lru_cache
-    def __init__(self, access_token: str, group_id: int, api_version: float = 5.126):
+    def __init__(self, access_token: str, api_version: float = 5.126):
         """
 
         Args:
             access_token: GROUP_API_TOKEN for VK_API
-            group_id: id of group you are logging in to
             api_version: version af VK_API that you use
         """
         super().__init__(access_token, api_version)
-        self.session_params |= {'group_id': group_id}
+        self.session_params |= {'group_id': self.method_sync('groups.getById')['response'][0]['id']}
 
     async def get_long_poll_server(self):
         return LongPollServer(self, **await self.get_long_poll_server_row())
@@ -712,7 +710,7 @@ class Command:
     """
 
     def __init__(self,
-                 func: Callable[[...], Awaitable] | Callable[[...], Any],
+                 func: Callable[[...], Awaitable] | Callable[[...], str | None],
                  name: str = None,
                  aliases: list[str] = None,
                  access_level: AccessLevel = AccessLevel.USER,
