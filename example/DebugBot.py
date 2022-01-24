@@ -36,6 +36,11 @@ async def test(message: VK.Message, a, b: int = 1, c: float = .1, d: str = 'D', 
     # print(await bot.session.get_by_conversation_message_id(message.chat.id, message.conversation_message_id))
 
 
+@bot.command('echo')
+async def echo():
+    return 'echo'
+
+
 @bot.regex('test')
 async def test(message: VK.Message):
     await message.reply('it works')
