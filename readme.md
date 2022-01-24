@@ -16,6 +16,7 @@ Easiest hi-bot
 
 #Features
 `Bot` - main class
+
 ###Parameters
 - `access_token` - string to access api
 - `bot_admin` - id of user, that will gain maximum access for bot's commands
@@ -23,6 +24,7 @@ Easiest hi-bot
 - `event_server` - `CallBackServer` or `LongPollServer` that will pass events to bot (LongPollServer will bew created automaticly)
 - `log_file` - name of log_file (will bew created at /log directory)
 - `log_level`
+
 ##Commands
 `Bot.command()` - decorator for the functions that will be converted to a `Command` object
 
