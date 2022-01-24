@@ -1,16 +1,16 @@
-import abc
-import argparse
-import asyncio
 import enum
 import inspect
 import json
 import logging
 import logging.handlers
-import random
 import re
-import time
-import typing
+from abc import ABC, abstractmethod
+from argparse import ArgumentParser
+from asyncio import Task, run, gather, create_task
 from functools import lru_cache, update_wrapper
+from random import randint
+from time import localtime, strftime, struct_time
+from typing import Optional, Awaitable, Dict, AsyncIterable, Sequence, Callable
 
 import aiohttp
 import docstring_parser
@@ -58,7 +58,7 @@ class Session:
             params = {}
         return await get(f'{self.__base_url}{method}', params | self.session_params)
 
-    def method_sync(self, method: str, params: typing.Optional[dict] = None) -> dict:
+    def method_sync(self, method: str, params: Optional[dict] = None) -> dict:
         """
         Base method for accessing VK_API (synchronous)
 
@@ -133,7 +133,7 @@ class Session:
 
     _users_cache = {}
 
-    async def get_users(self, users: int | typing.Sequence[int]) -> list['User']:
+    async def get_users(self, users: int | Sequence[int]) -> list['User']:
         if isinstance(users, int):
             users = [users]
         if len(not_cached := [*filter(lambda x: x not in Session._users_cache, users)]) > 0:
@@ -255,7 +255,7 @@ class Chat:
         return hash(self.id)
 
     async def send(self, text: str = '', attachments: list = None, forward_message: dict = None,
-                   sticker: typing.Optional[int] = None) -> dict:
+                   sticker: Optional[int] = None) -> dict:
         """
 
         Args:
@@ -286,7 +286,7 @@ class Chat:
         params = {
             f'peer_id': self.id,
             f'message': text,
-            f'random_id': random.randint(1, 2147123123),
+            f'random_id': randint(1, 2147123123),
         }
         if sticker is not None:
             params['sticker_id'] = sticker
@@ -307,10 +307,10 @@ class Message:
     """
 
     @lru_cache
-    def __init__(self, text: str, date: time.struct_time, conversation_message_id: int, sender: User,
+    def __init__(self, text: str, date: struct_time, conversation_message_id: int, sender: User,
                  chat: Chat, vk_session: Session):
         self.vk_session = vk_session
-        self.date: time.struct_time = date
+        self.date: struct_time = date
         self.text: str = text
         self.sender: User = sender
         self.chat: Chat = chat
@@ -543,8 +543,7 @@ class Bot(EventHandler):
         async def help_command(command: str = ''):
             if command == '':
                 a = '\n'
-                s = ', '
-                return f'Доступные команды: \n{a.join(map(lambda x: f"{x.name} ({s.join(x.aliases)})", self.commands))}'
+                return f'Доступные команды: \n{a.join([x.short_help for x in self.commands])}'
             elif command in self.commands.aliases:
                 return self.commands[command].help
             else:
@@ -567,10 +566,7 @@ class Bot(EventHandler):
         await self.regexes.handle_regex(message)
 
     async def on_message_edit(self, message: Message):
-        logging.info(
-            f'Message edited by {message.sender}) '
-            f'in {message.chat.title} '
-            f'at {time.strftime("%x %X", message.date)}:\n{message.text}')
+        logging.info(f'{message} edited at {strftime("%x %X", message.date)}:\n{message.text}')
 
     def add_command(self, command: 'Command'):
         self.commands.add_command(command)
@@ -585,7 +581,7 @@ class Bot(EventHandler):
 
         Args:
             name: the main name of the command
-            names: additional names of the command
+            names: additional aliases of the command
             access_level: minimal access level of user to use command
             message_if_deny: text, that will be sent to user if his access_level less than command's access_level
             use_doc:
@@ -711,9 +707,9 @@ class Command:
     """
 
     def __init__(self,
-                 func: typing.Callable[[Message, ...], typing.Awaitable],
+                 func: Callable[[...], Awaitable],
                  name: str = None,
-                 names: list[str] = None,
+                 aliases: list[str] = None,
                  access_level: AccessLevel = AccessLevel.USER,
                  message_if_deny: str = 'Access denied',
                  use_doc: bool = False):
@@ -721,13 +717,13 @@ class Command:
         Args:
             func: function that will be converted into Command-object
             name: the main name of the command
-            names: additional names of the command
+            aliases: additional names of the command
             access_level: minimal access level of user to use command
             message_if_deny: text, that will be sent to user if his access_level less than command's access_level
         """
         self.bot_admin = 0
-        if names is None:
-            names: list[str] = []
+        if aliases is None:
+            aliases: list[str] = []
         if name is None or name == '':
             self.name = func.__name__
         else:
@@ -735,9 +731,9 @@ class Command:
         update_wrapper(self, func)
         self.message_if_deny = message_if_deny
         self._func = func
-        self._names = names
+        self.aliases = aliases
         self.access_level = access_level
-        parser = argparse.ArgumentParser(description=f'Command {self.name}', exit_on_error=False)
+        parser = ArgumentParser(description=f'Command {self.name}', exit_on_error=False)
         self._use_message = False
         for name, param in inspect.signature(self).parameters.items():
             if name == 'message':
@@ -758,7 +754,9 @@ class Command:
             # print(arg)
         # parser.print_help(sys.stdout)
         self.parser = parser
+        self.names = [self.name, *self.aliases]
         self.help = self._convert_signature_to_help(use_doc)
+        self.short_help = self.name + (f'({", ".join(self.aliases)})' if self.aliases else '')
 
     def _check_permissions(self, message: Message) -> bool:
         """
@@ -792,14 +790,6 @@ class Command:
         elif self.message_if_deny:
             await message.reply(self.message_if_deny)
 
-    @property
-    def names(self) -> list[str]:
-        return [self.name, *self._names]
-
-    @property
-    def aliases(self):
-        return self._names
-
     def _convert_signature_to_help(self, use_doc: bool = False) -> str:
         """
         Converting the signature of the command function to the help-string, that will be used by standard help-command
@@ -808,7 +798,7 @@ class Command:
 
             Команда: {name}
 
-            Альтернативные названия: {names} #only if alternative names exists
+            Альтернативные названия: {aliases} #only if alternative aliases exists
 
             Аргументы:
 
@@ -829,8 +819,8 @@ class Command:
         res = f'Команда: {self.name}\n'
         if documentation:
             res += f'{documentation.short_description}\n'
-        if len(self._names) > 0:
-            res += f'Альтернативные названия: {", ".join(self._names)}' if self._names else ''
+        if len(self.aliases) > 0:
+            res += f'Альтернативные названия: {", ".join(self.aliases)}' if self.aliases else ''
         res += '\nАргументы:\n'
         for name, param in inspect.signature(self).parameters.items():
             if name == 'message':
@@ -882,11 +872,11 @@ class CommandHandler:
             await message.reply(f'There is no command {command}')
         except TypeError as e:
             await message.reply(f'Unexpected arguments for {command} command')
-            logging.info(e)
+            logging.exception(e)
 
 
 class Regex:
-    def __init__(self, func: typing.Callable[[Message], typing.Awaitable], regular_expression: str):
+    def __init__(self, func: Callable[[Message], Awaitable], regular_expression: str):
         self.regex = re.compile(regular_expression)
         update_wrapper(self, func)
         self._func = func
@@ -908,14 +898,14 @@ class RegexHandler:
             await r(message)
 
 
-class EventServer(abc.ABC):
+class EventServer(ABC):
     def __init__(self, vk_session: GroupSession):
         self.vk_session = vk_session
         self.listeners: list[EventHandler] = []
-        self.tasks: list[asyncio.Task] = []
+        self.tasks: list[Task] = []
 
     def add_task(self, coroutine):
-        self.tasks.append(task := asyncio.create_task(coroutine))
+        self.tasks.append(task := create_task(coroutine))
         return task
 
     def bind_listener(self, listener: EventHandler):
@@ -932,10 +922,10 @@ class EventServer(abc.ABC):
         match event_type:
             case Event.MESSAGE_NEW:
                 message_dict = event['object']['message']
-                _wait_users = asyncio.create_task(self.vk_session.get_users(message_dict['from_id']))
-                _wait_chat = asyncio.create_task(self.vk_session.get_chat(message_dict['peer_id']))
+                _wait_users = create_task(self.vk_session.get_users(message_dict['from_id']))
+                _wait_chat = create_task(self.vk_session.get_chat(message_dict['peer_id']))
                 context |= {'message': Message(message_dict['text'],
-                                               time.localtime(message_dict['date']),
+                                               localtime(message_dict['date']),
                                                message_dict['conversation_message_id'],
                                                (await _wait_users)[0],
                                                await _wait_chat,
@@ -943,7 +933,7 @@ class EventServer(abc.ABC):
                             'client_info': event['object']['client_info']}
         return event_type, context
 
-    @abc.abstractmethod
+    @abstractmethod
     def listen(self):
         pass
 
@@ -970,7 +960,7 @@ class CallBackServer(EventServer):
 
     def listen(self):
         web.run_app(self.app, host=self.host, port=self.port)
-        asyncio.run(asyncio.gather(self.tasks))
+        run(gather(self.tasks))
 
 
 class LongPollServer(EventServer):
@@ -980,7 +970,7 @@ class LongPollServer(EventServer):
         self.key = key
         self.ts = ts
 
-    async def check(self) -> typing.AsyncIterable[tuple[Event, typing.Dict]]:
+    async def check(self) -> AsyncIterable[tuple[Event, Dict]]:
         """
         Checks for new events on long_poll_server, updates long_poll_server information if failed to get events
 
@@ -1017,7 +1007,7 @@ class LongPollServer(EventServer):
                 yield event
 
     def listen(self) -> None:
-        asyncio.run(self._listen())
+        run(self._listen())
 
     async def _listen(self) -> None:
         try:
@@ -1026,7 +1016,7 @@ class LongPollServer(EventServer):
                     self.add_task(self.notify_listeners(event))
         except Exception as e:
             logging.exception(e)
-            await asyncio.gather(self.tasks)
+            await gather(self.tasks)
 
     async def __update(self):
         new = await self.vk_session.get_long_poll_server_row()
