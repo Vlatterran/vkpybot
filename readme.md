@@ -14,10 +14,10 @@ Easiest hi-bot
     
     bot.start()
 
-#Features
+# Features
 `Bot` - main class
 
-###Parameters
+### Parameters
 - `access_token` - string to access api
 - `bot_admin` - id of user, that will gain maximum access for bot's commands
 - `session` - `GroupSession` object to access api (will be created automatically if not passed)
@@ -25,6 +25,6 @@ Easiest hi-bot
 - `log_file` - name of log_file (will bew created at /log directory)
 - `log_level`
 
-##Commands
+## Commands
 `Bot.command()` - decorator for the functions that will be converted to a `Command` object
 
