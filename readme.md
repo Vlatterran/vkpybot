@@ -15,7 +15,7 @@ Easiest hi-bot
     
     bot.start()
 
-# Features
+# Documentation
 
 `Bot` - main class
 
