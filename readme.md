@@ -25,7 +25,7 @@ Easiest hi-bot
 - `bot_admin` - id of user, that will gain maximum access for bot`s commands
 - `session` - `GroupSession` object to access api (will be created automatically if not passed)
 - `event_server` - `CallBackServer` or `LongPollServer` that will pass events to bot (LongPollServer will bew created
-  automaticly)
+  automatically)
 - `log_file` - name of log_file (will bew created at /log directory)
 - `log_level`
 
