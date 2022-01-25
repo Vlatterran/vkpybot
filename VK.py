@@ -11,7 +11,7 @@ from asyncio import Task, run, gather, create_task
 from functools import lru_cache, update_wrapper
 from random import randint
 from time import localtime, strftime, struct_time
-from typing import Optional, Awaitable, Dict, AsyncIterable, Sequence, Callable, Any
+from typing import Optional, Awaitable, Dict, AsyncIterable, Sequence, Callable
 
 import aiohttp
 import docstring_parser
@@ -57,6 +57,7 @@ class Session:
         """
         if params is None:
             params = {}
+        print(f'{self.__base_url}{method}', params | self.session_params | {'access_token': ''})
         return await get(f'{self.__base_url}{method}', params | self.session_params)
 
     def method_sync(self, method: str, params: Optional[dict] = None) -> dict:
@@ -132,19 +133,40 @@ class Session:
         result = f'{response["type"]}{response["doc"]["owner_id"]}_{response["doc"]["id"]}'
         return result
 
-    _users_cache = {}
+    class GetUsersRequest:
+        def __init__(self, users: Sequence[int], session: 'Session'):
+            self.user_ids = users
+            self.session = session
 
-    async def get_users(self, users: int | Sequence[int]) -> list['User']:
-        if isinstance(users, int):
-            users = [users]
+        def add_request(self, users: Sequence[int]):
+            self.user_ids += users
+
+        async def __call__(self):
+            await asyncio.sleep(.3)
+            return await self.session.method('users.get', {'user_ids': ','.join(map(str, self.user_ids))})
+
+    _users_cache = {}
+    _get_user_request: GetUsersRequest = None
+    _get_user_request_task: asyncio.Task = None
+
+    async def get_users(self, users: Sequence[int]) -> list['User']:
         if len(not_cached := [*filter(lambda x: x not in Session._users_cache, users)]) > 0:
-            _users = await self.method('users.get',
-                                       {'user_ids': ','.join(map(str, not_cached))})
-            for user in _users['response']:
-                user = User(user['id'], user['first_name'], user['last_name'], self)
-                Session._users_cache[user.id] = user
+            if Session._get_user_request_task is None:
+                Session._get_user_request = Session.GetUsersRequest(not_cached, self)
+                Session._get_user_request_task = asyncio.create_task(Session._get_user_request())
+                _users = await Session._get_user_request_task
+                for user in _users['response']:
+                    user = User(user['id'], user['first_name'], user['last_name'], self)
+                    Session._users_cache[user.id] = user
+                Session._get_user_request_task = None
+            else:
+                Session._get_user_request.add_request(not_cached)
+                await Session._get_user_request_task
         result = [*{Session._users_cache[user] for user in users}]
         return result
+
+    async def get_user(self, user: int) -> 'User':
+        return (await self.get_users([user]))[0]
 
     _chats_cache = {}
 
@@ -901,8 +923,11 @@ class RegexHandler:
         self.regexes.append(regex)
 
     async def handle_regex(self, message: Message):
+        tasks = []
         for r in self.regexes:
-            await r(message)
+            tasks.append(asyncio.create_task(r(message)))
+        for t in tasks:
+            await t
 
 
 class EventServer(ABC):
@@ -929,12 +954,12 @@ class EventServer(ABC):
         match event_type:
             case EventType.MESSAGE_NEW:
                 message_dict = event['object']['message']
-                _wait_users = create_task(self.vk_session.get_users(message_dict['from_id']))
+                _wait_user = create_task(self.vk_session.get_user(message_dict['from_id']))
                 _wait_chat = create_task(self.vk_session.get_chat(message_dict['peer_id']))
                 context |= {'message': Message(message_dict['text'],
                                                localtime(message_dict['date']),
                                                message_dict['conversation_message_id'],
-                                               (await _wait_users)[0],
+                                               (await _wait_user),
                                                await _wait_chat,
                                                self.vk_session),
                             'client_info': event['object']['client_info']}
@@ -1030,4 +1055,3 @@ class LongPollServer(EventServer):
         self.server = new['server']
         self.key = new['key']
         self.ts = new['ts']
-
