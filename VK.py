@@ -459,7 +459,7 @@ class EventHandler:
             EventType.BOARD_POST_DELETE: self.on_board_post_delete
         }
 
-    async def __call__(self, event: 'EventType', context: dict):
+    async def __call__(self, event: 'EventType', **context: dict):
         if event in self.__event_handler:
             await self.__event_handler[event](**context)
 
@@ -478,79 +478,80 @@ class EventHandler:
     async def on_message_deny(self, user: User):
         pass
 
-    async def on_message_typing_state(self, state, sender: User, receiver):
+    async def on_message_typing_state(self, state: str, sender: User, receiver):
         pass
 
-    async def on_message_event(self, context):
+    async def on_message_event(self, user: User, **context):
         pass
 
-    async def on_photo_new(self, context):
+    async def on_photo_new(self, photo, **context):
         pass
 
-    async def on_photo_comment_new(self, context):
+    async def on_photo_comment_new(self, comment, photo_id: int, photo_owner_id: int, **context):
         pass
 
-    async def on_photo_comment_edit(self, context):
+    async def on_photo_comment_edit(self, comment, photo_id: int, photo_owner_id: int, **context):
         pass
 
-    async def on_photo_comment_restore(self, context):
+    async def on_photo_comment_restore(self, comment, photo_id: int, photo_owner_id: int, **context):
         pass
 
-    async def on_photo_comment_delete(self, context):
+    # TODO: check if deprecated in VK
+    async def on_photo_comment_delete(self, **context):
         pass
 
-    async def on_audio_new(self, context):
+    async def on_audio_new(self, audio, **context):
         pass
 
-    async def on_video_new(self, context):
+    async def on_video_new(self, video, **context):
         pass
 
-    async def on_video_comment_new(self, context):
+    async def on_video_comment_new(self, comment, video_id: int, video_owner_id: int, **context):
         pass
 
-    async def on_video_comment_edit(self, context):
+    async def on_video_comment_edit(self, comment, video_id: int, video_owner_id: int, **context):
         pass
 
-    async def on_video_comment_restore(self, context):
+    async def on_video_comment_restore(self, comment, video_id: int, video_owner_id: int, **context):
         pass
 
-    async def on_video_comment_delete(self, context):
+    async def on_video_comment_delete(self, owner_id: int, comment_id: int, user: User, deleter: User, **context):
         pass
 
-    async def on_wall_post_new(self, context):
+    async def on_wall_post_new(self, **context):
         pass
 
-    async def on_wall_repost(self, context):
+    async def on_wall_repost(self, **context):
         pass
 
-    async def on_wall_reply_new(self, context):
+    async def on_wall_reply_new(self, **context):
         pass
 
-    async def on_wall_reply_edit(self, context):
+    async def on_wall_reply_edit(self, **context):
         pass
 
-    async def on_wall_reply_restore(self, context):
+    async def on_wall_reply_restore(self, **context):
         pass
 
-    async def on_wall_reply_delete(self, context):
+    async def on_wall_reply_delete(self, **context):
         pass
 
-    async def on_like_add(self, context):
+    async def on_like_add(self, **context):
         pass
 
-    async def on_like_remove(self, context):
+    async def on_like_remove(self, **context):
         pass
 
-    async def on_board_post_new(self, context):
+    async def on_board_post_new(self, **context):
         pass
 
-    async def on_board_post_edit(self, context):
+    async def on_board_post_edit(self, **context):
         pass
 
-    async def on_board_post_restore(self, context):
+    async def on_board_post_restore(self, **context):
         pass
 
-    async def on_board_post_delete(self, context):
+    async def on_board_post_delete(self, **context):
         pass
 
 
@@ -949,11 +950,14 @@ class CommandHandler:
         temp = message.text[1:].split()
         _command = temp[0]
         try:
-            await self[command](message)
+            command = self[_command]
         except KeyError:
-            await message.reply(f'There is no command {command}')
-        except TypeError as e:
-            await message.reply(f'Unexpected arguments for {command} command')
+            await message.reply(f'There is no command {_command}')
+            return
+        try:
+            await command(message)
+        except Exception as e:
+            await message.reply(f'An exception has occurred in "{_command}" execution')
             logging.exception(e)
 
 
