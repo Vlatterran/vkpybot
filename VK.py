@@ -57,8 +57,12 @@ class Session:
         """
         if params is None:
             params = {}
-        print(f'{self.__base_url}{method}', params | self.session_params | {'access_token': ''})
-        return await get(f'{self.__base_url}{method}', params | self.session_params)
+        # logging.debug(f'(request){self.__base_url}{method}, {params | self.session_params | {"access_token": ""} }')
+        resp = (await get(f'{self.__base_url}{method}', params | self.session_params))
+        # logging.debug(f'(response){resp}')
+        if 'error' in resp:
+            raise Exception(f"code {resp['error']['error_code']}: {resp['error']['error_msg']}")
+        return resp['response']
 
     def method_sync(self, method: str, params: Optional[dict] = None) -> dict:
         """
@@ -75,7 +79,10 @@ class Session:
             params = dict()
         url = f'{self.__base_url}{method}'
         params |= self.session_params
-        return requests.get(url, params).json()
+        resp = requests.get(url, params).json()
+        if 'error' in resp:
+            raise Exception(f"code {resp['error']['error_code']}: {resp['error']['error_msg']}")
+        return resp['response']
 
     @property
     def cache(self):
@@ -100,11 +107,11 @@ class Session:
                 'peer_id': 0
             }
             upload_url = (await self.method(method=f'photos.getMessagesUploadServer',
-                                            params=params))['response']['upload_url']
+                                            params=params))['upload_url']
             async with aiohttp.ClientSession() as session:
                 resp = await session.post(url=upload_url, data=file)
                 photo: dict = json.loads(await resp.text())
-            response = (await self.method(method='photos.saveMessagesPhoto', params=photo))['response'][0]
+            response = (await self.method(method='photos.saveMessagesPhoto', params=photo))[0]
             Session._image_cache[file['photo']] = f'photo{response["owner_id"]}_{response["id"]}'
         return Session._image_cache[file['photo']]
 
@@ -123,13 +130,12 @@ class Session:
         file = {'file': open(doc, mode='rb')}
         upload_url = (await self.method(method='docs.getMessagesUploadServer',
                                         params=params))
-        upload_url = upload_url['response']['upload_url']
+        upload_url = upload_url['upload_url']
         async with aiohttp.ClientSession() as session:
             resp = await session.post(url=upload_url, data=file)
             document: dict = json.loads(await resp.text())
         response = (await self.method(method='docs.save',
                                       params=document | {'title': file['file'].name.split('\\')[-1]}))
-        response = response['response']
         result = f'{response["type"]}{response["doc"]["owner_id"]}_{response["doc"]["id"]}'
         return result
 
@@ -155,7 +161,7 @@ class Session:
                 Session._get_user_request = Session.GetUsersRequest(not_cached, self)
                 Session._get_user_request_task = asyncio.create_task(Session._get_user_request())
                 _users = await Session._get_user_request_task
-                for user in _users['response']:
+                for user in _users:
                     user = User(user['id'], user['first_name'], user['last_name'], self)
                     Session._users_cache[user.id] = user
                 Session._get_user_request_task = None
@@ -181,7 +187,7 @@ class Session:
         """
         if chat_id not in Session._chats_cache:
             result = await self.method('messages.getConversationsById', {'peer_ids': chat_id})
-            chat_dict = result['response']['items'][0]
+            chat_dict = result['items'][0]
             if chat_dict['peer']['type'] == 'chat':
                 chat_dict['admins'] = await self.get_users(
                     [*filter(lambda x: x > 0, [chat_dict['chat_settings']['owner_id'],
@@ -576,7 +582,7 @@ class Bot(EventHandler):
         """
         if self.server is None:
             self.server = LongPollServer(self.session,
-                                         **self.session.method_sync('groups.getLongPollServer')['response'])
+                                         **self.session.method_sync('groups.getLongPollServer'))
         self.server.bind_listener(self)
         self.server.listen()
 
@@ -712,13 +718,13 @@ class GroupSession(Session):
             api_version: version af VK_API that you use
         """
         super().__init__(access_token, api_version)
-        self.session_params |= {'group_id': self.method_sync('groups.getById')['response'][0]['id']}
+        self.session_params |= {'group_id': self.method_sync('groups.getById')[0]['id']}
 
     async def get_long_poll_server(self):
         return LongPollServer(self, **await self.get_long_poll_server_row())
 
     async def get_long_poll_server_row(self):
-        server_config = (await self.method('groups.getLongPollServer'))['response']
+        server_config = (await self.method('groups.getLongPollServer'))
         return server_config
 
 
