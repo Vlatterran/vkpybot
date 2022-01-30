@@ -1,5 +1,6 @@
 import asyncio
 import enum
+import functools
 import inspect
 import json
 import logging
@@ -15,6 +16,7 @@ from typing import Optional, Awaitable, Dict, AsyncIterable, Sequence, Callable
 
 import aiohttp
 import docstring_parser
+import pydantic
 import requests
 from aiohttp import web
 
@@ -86,7 +88,7 @@ class Session:
 
     @property
     def cache(self):
-        response = f'Пользователи: {",".join(map(lambda user: user.refer(), self._users_cache.values()))}\n'
+        response = f'Пользователи: {",".join(map(lambda user: user.refer, self._users_cache.values()))}\n'
         response += f'Чаты: {[*self._chats_cache.values()]}\n'
         response += f'Изображения: {[*self._image_cache.values()]}'
         return response
@@ -162,7 +164,7 @@ class Session:
                 Session._get_user_request_task = asyncio.create_task(Session._get_user_request())
                 _users = await Session._get_user_request_task
                 for user in _users:
-                    user = User(user['id'], user['first_name'], user['last_name'], self)
+                    user = User(**user)
                     Session._users_cache[user.id] = user
                 Session._get_user_request_task = None
             else:
@@ -192,13 +194,16 @@ class Session:
                 chat_dict['admins'] = await self.get_users(
                     [*filter(lambda x: x > 0, [chat_dict['chat_settings']['owner_id'],
                                                *chat_dict['chat_settings']['admin_ids']])])
-            Session._chats_cache[chat_id] = Chat(chat_dict, self)
+                Session._chats_cache[chat_id] = Conversation(chat_dict, self)
+            else:
+                Session._chats_cache[chat_id] = PrivateChat(chat_dict, self)
         return Session._chats_cache[chat_id]
 
     async def execute(self, code: str, func_v: int = 1) -> dict:
         return await self.method('execute', {'code': code, 'func_v': func_v})
 
-    async def get_by_conversation_message_id(self, chat_id: int, message_ids: int | list[int],
+    async def get_by_conversation_message_id(self, chat_id: int,
+                                             message_ids: int | list[int],
                                              extended: bool = False):
         params = {
             'peer_ids': chat_id,
@@ -207,38 +212,85 @@ class Session:
         }
         ids = params['conversation_message_ids']
         code = f'''
-var messages = API.messages.getByConversationMessageId({{"conversation_message_ids": {ids}, 'peer_id':{chat_id}}});
+var messages = API.messages.getByConversationsMessageId({{"conversation_message_ids": {ids}, 'peer_id':{chat_id}}});
 var chats = API.messages.getConversationById({{
-"group_id": {self.session_params['group_id']},
-"peer_ids": messages.items@.peer_id
+    "group_id": {self.session_params['group_id']},
+    "peer_ids": messages.items@.peer_id
 }});
 var user_ids = chats.items@.chat_settings@.owner_id.concat(chats.items@.chat_settings@.admin_ids);
 var users = API.users.get({{"user_ids":user_ids}});
 return {{"message":messages.items[0],
- "chat":chats.items[0],
-  "users":users,
-   "user": user_ids}};'''
+    "chat":chats.items[0],
+    "users":users,
+    "user": user_ids}};
+        '''
         from pprint import pprint
         print(code)
         print(await self.method('messages.getConversationsById', params))
         pprint(a := await self.execute(code))
         return a
 
+    async def send_message(self,
+                           chat: 'Chat',
+                           text: str = '',
+                           attachments: list = None,
+                           forward_message: dict = None,
+                           sticker: int | None = None):
+        """
+            Args:
+                chat: Chat
+                text: str
+                    the text of the message
+                attachments: list of the attachments text of the message
+                forward_message: dict
+                sticker: id of sticker in message (sticker will replace text)
+                    {
+                        'peer_id': int,
+                        'conversation_message_ids': list[int],
+                        Optional['is_reply']: 1 if replying (only if forwarding to one message in same chat)
+                    }
 
-class User:
+            Returns:
+                dict:
+                    {
+                        'peer_id': 'идентификатор назначения',
+                        'message_id': 'идентификатор сообщения',
+                        'conversation_message_id': 'идентификатор сообщения в диалоге',
+                        'error': 'сообщение об ошибке, если сообщение не было доставлено получателю'
+                    }
+        """
+        method = 'messages.send'
+        if text == '' and (attachments or sticker) is None:
+            raise ValueError("Can't send empty message")
+        params = {
+            f'peer_id': chat.id,
+            f'message': text,
+            f'random_id': randint(1, 2147123123),
+        }
+        if sticker is not None:
+            params['sticker_id'] = sticker
+        if attachments is not None:
+            params['attachment'] = attachments
+        if forward_message is not None:
+            params['forward'] = json.dumps(forward_message)
+        return await self.method(method, params)
+
+
+class User(pydantic.BaseModel):
     """
     Represent user from VK_API
 
     Attributes:
         id (int): ID of user
     """
+    id: int
+    first_name: str
+    last_name: str
+    is_closed: bool
+    can_access_closed: bool
+    deactivated: str | None
 
-    def __init__(self, user_id: int, first_name: str, last_name: str, session: Session):
-        self.session = session
-        self.id = user_id
-        self.first_name = first_name
-        self.last_name = last_name
-
+    @functools.cached_property
     def refer(self):
         return f"[id{self.id}|{str(self)}]"
 
@@ -246,7 +298,7 @@ class User:
         return f'{self.first_name} {self.last_name}'
 
     def __repr__(self):
-        return f'<User {self.first_name} {self.last_name} (id:{self.id})>'
+        return f'<User {str(self)} (id:{self.id})>'
 
     def __eq__(self, other):
         return isinstance(other, User) and self.id == other.id
@@ -263,19 +315,6 @@ class Chat:
     def __init__(self, chat_dict, session: Session):
         self.session = session
         self.id = chat_dict['peer']['id']
-        if chat_dict['peer']['type'] == 'chat':
-            self.title = chat_dict['chat_settings']['title']
-            self.owner = chat_dict['admins'][0]
-            self.admins = chat_dict['admins'][1:]
-            self.member_count = chat_dict['chat_settings']['members_count']
-        else:
-            self.title = 'ЛС'
-
-    def __str__(self):
-        return self.title
-
-    def __repr__(self):
-        return f'<Chat "{self.title}" (id: {self.id})>'
 
     def __eq__(self, other):
         return isinstance(other, Chat) and self.id == other.id
@@ -283,47 +322,53 @@ class Chat:
     def __hash__(self):
         return hash(self.id)
 
-    async def send(self, text: str = '', attachments: list = None, forward_message: dict = None,
-                   sticker: Optional[int] = None) -> dict:
+    async def send(self,
+                   text: str = '',
+                   attachments: list = None,
+                   forward_message: dict = None,
+                   sticker: int | None = None) -> dict:
         """
-
+        Shortcut Session.send_message
         Args:
-            text: str
-                the text of the message
-            attachments: list
-                list of the attachments text of the message
-            forward_message: dict
-            sticker: id of sticker in message (sticker will replace text)
-                {
-                    'peer_id': int,
-                    'conversation_message_ids': list[int],
-                    Optional['is_reply']: 1 if replying (only if forwarding to one message in same chat)
-                }
+            text:
+            attachments:
+            forward_message:
+            sticker:
 
         Returns:
-            dict:
-                {
-                    'peer_id': 'идентификатор назначения',
-                    'message_id': 'идентификатор сообщения',
-                    'conversation_message_id': 'идентификатор сообщения в диалоге',
-                    'error': 'сообщение об ошибке, если сообщение не было доставлено получателю'
-                }
+
         """
-        if text == '' and (attachments or sticker) is None:
-            raise ValueError("Can't send empty message")
-        method = 'messages.send'
-        params = {
-            f'peer_id': self.id,
-            f'message': text,
-            f'random_id': randint(1, 2147123123),
-        }
-        if sticker is not None:
-            params['sticker_id'] = sticker
-        if attachments is not None:
-            params['attachment'] = attachments
-        if forward_message is not None:
-            params['forward'] = json.dumps(forward_message)
-        return await self.session.method(method=method, params=params)
+        return await self.session.send_message(chat=self,
+                                               text=text,
+                                               attachments=attachments,
+                                               forward_message=forward_message,
+                                               sticker=sticker)
+
+
+class PrivateChat(Chat):
+    def __init__(self, chat_dict, session):
+        super(PrivateChat, self).__init__(chat_dict, session)
+
+    def __str__(self):
+        return 'ЛС'
+
+    def __repr__(self):
+        return f'<PrivateChat (id: {self.id})>'
+
+
+class Conversation(Chat):
+    def __init__(self, chat_dict, session):
+        super(Conversation, self).__init__(chat_dict, session)
+        self.title = chat_dict['chat_settings']['title']
+        self.owner = chat_dict['admins'][0]
+        self.admins = chat_dict['admins'][1:]
+        self.member_count = chat_dict['chat_settings']['members_count']
+
+    def __str__(self):
+        return self.title
+
+    def __repr__(self):
+        return f'<Conversation "{self.title}" (id: {self.id})>'
 
 
 class Message:
@@ -336,9 +381,11 @@ class Message:
     """
 
     @lru_cache
-    def __init__(self, text: str, date: struct_time, conversation_message_id: int, sender: User,
-                 chat: Chat, vk_session: Session):
-        self.vk_session = vk_session
+    def __init__(self, text: str,
+                 date: struct_time,
+                 conversation_message_id: int,
+                 sender: User,
+                 chat: Chat):
         self.date: struct_time = date
         self.text: str = text
         self.sender: User = sender
@@ -385,7 +432,7 @@ class EventHandler:
             EventType.MESSAGE_REPLY: self.on_message_reply,
             EventType.MESSAGE_ALLOW: self.on_message_allow,
             EventType.MESSAGE_DENY: self.on_message_deny,
-            # EventType.MESSAGE_TYPING_STATE: self.on_message_typing_state,
+            EventType.MESSAGE_TYPING_STATE: self.on_message_typing_state,
             EventType.MESSAGE_EVENT: self.on_message_event,
             EventType.PHOTO_NEW: self.on_photo_new,
             EventType.PHOTO_COMMENT_NEW: self.on_photo_comment_new,
