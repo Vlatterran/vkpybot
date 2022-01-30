@@ -947,7 +947,7 @@ class CommandHandler:
 
     async def handle_command(self, message: Message):
         temp = message.text[1:].split()
-        command = temp[0]
+        _command = temp[0]
         try:
             await self[command](message)
         except KeyError:
@@ -989,17 +989,20 @@ class EventServer(ABC):
         self.listeners: list[EventHandler] = []
         self.tasks: list[Task] = []
 
-    def add_task(self, coroutine):
+    def create_task(self, coroutine):
         self.tasks.append(task := create_task(coroutine))
         return task
 
     def bind_listener(self, listener: EventHandler):
         self.listeners.append(listener)
 
-    async def notify_listeners(self, event_dict):
+    async def _notify_listeners(self, event_dict):
         event, context = await self.parse_event(event_dict)
         for listener in self.listeners:
-            await listener(event, context)
+            await listener(event, **context)
+
+    def notify_listeners(self, event_dict):
+        self.create_task(self._notify_listeners(event_dict))
 
     async def parse_event(self, event) -> tuple[EventType, dict]:
         event_type: EventType = EventType[event['type'].upper()]
@@ -1013,8 +1016,7 @@ class EventServer(ABC):
                                                localtime(message_dict['date']),
                                                message_dict['conversation_message_id'],
                                                (await _wait_user),
-                                               await _wait_chat,
-                                               self.vk_session),
+                                               await _wait_chat),
                             'client_info': event['object']['client_info']}
         return event_type, context
 
@@ -1038,7 +1040,7 @@ class CallBackServer(EventServer):
                 print(code)
                 return web.Response(text=code)
             else:
-                self.add_task(self.notify_listeners(req))
+                self.notify_listeners(req)
                 return web.Response(text='ok')
 
         self.app.add_routes([web.post('/', hello_post)])
@@ -1098,7 +1100,7 @@ class LongPollServer(EventServer):
         try:
             while True:
                 async for event in self.check():
-                    self.add_task(self.notify_listeners(event))
+                    self.notify_listeners(event)
         except Exception as e:
             logging.exception(e)
             await gather(self.tasks)
