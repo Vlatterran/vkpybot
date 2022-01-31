@@ -9,7 +9,7 @@ def main():
     bot = VK.Bot(access_token=token, bot_admin_id=admin, log_file='log.log', loglevel=20)
 
     @bot.command('пары', use_doc=True)
-    def lectures(message: VK.Message, day: str = 'сегодня'):
+    def lectures(day: str = 'сегодня'):
         """
         Отправляет расписание на указанный день
         По умолчанию используется текущая дата
