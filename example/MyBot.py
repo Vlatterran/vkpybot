@@ -1,16 +1,16 @@
 import asyncio
-import sys
 
 import VK
 from schedule import Schedule
 
 
 def main():
-    if len(sys.argv) == 0:
+    try:
         from config import token, bot_admin as admin
-    else:
-        token = sys.argv[1]
-        admin = int(sys.argv[2])
+    except ImportError:
+        import os
+        token = os.environ['token']
+        admin = int(os.environ['admin'])
     bot = VK.Bot(access_token=token, bot_admin_id=admin, log_file='log.log', loglevel=20)
 
     @bot.command('пары', use_doc=True)
