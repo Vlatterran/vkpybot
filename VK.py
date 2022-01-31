@@ -290,7 +290,8 @@ class User(pydantic.BaseModel):
     can_access_closed: bool
     deactivated: str | None
 
-    @functools.cached_property
+    @property
+    @functools.lru_cache()
     def refer(self):
         return f"[id{self.id}|{str(self)}]"
 
