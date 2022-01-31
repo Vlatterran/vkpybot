@@ -638,7 +638,9 @@ class Bot(EventHandler):
     async def on_message_new(self, message: Message, client_info: dict):
         logging.info(message)
         if len(message.text) > 1 and message.text[0] == '!':
-            await self.commands.handle_command(message)
+            result = await self.commands.handle_command(message)
+            if isinstance(result, str):
+                await self.session.send_message(message.chat, result)
         await self.regexes.handle_regex(message)
 
     async def on_message_edit(self, message: Message):
@@ -849,13 +851,13 @@ class Command:
         """
         if message.sender.id == self.bot_admin:
             user_access_level = AccessLevel.BOT_ADMIN
-        elif message.chat.title == 'ЛС' or message.sender in message.chat.admins:
+        elif isinstance(message.chat, PrivateChat) or message.sender in message.chat.admins:
             user_access_level = AccessLevel.ADMIN
         else:
             user_access_level = AccessLevel.USER
         return user_access_level >= self.access_level
 
-    async def __call__(self, message: Message) -> None:
+    async def __call__(self, message: Message) -> str | None:
         if self._check_permissions(message):
             try:
                 # self.parser.print_help(sys.stdout)
@@ -866,12 +868,11 @@ class Command:
                     result = await self._func(**args)
                 else:
                     result = self._func(**args)
-                if isinstance(result, str):
-                    await message.reply(result)
+                return result
             except SystemExit:
-                await message.reply(f'Invalid arguments for command {self.name}')
+                return f'Invalid arguments for command {self.name}'
         elif self.message_if_deny:
-            await message.reply(self.message_if_deny)
+            return self.message_if_deny
 
     def _convert_signature_to_help(self, use_doc: bool = False) -> str:
         """
@@ -953,13 +954,12 @@ class CommandHandler:
         try:
             command = self[_command]
         except KeyError:
-            await message.reply(f'There is no command {_command}')
-            return
+            return f'There is no command {_command}'
         try:
-            await command(message)
+            return await command(message)
         except Exception as e:
-            await message.reply(f'An exception has occurred in "{_command}" execution')
             logging.exception(e)
+            return f'An exception has occurred in "{_command}" execution'
 
 
 class Regex:
