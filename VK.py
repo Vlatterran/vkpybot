@@ -1,4 +1,5 @@
 import asyncio
+import datetime
 import enum
 import functools
 import inspect
@@ -11,7 +12,7 @@ from argparse import ArgumentParser
 from asyncio import Task, run, gather, create_task
 from functools import lru_cache, update_wrapper
 from random import randint
-from time import localtime, strftime, struct_time
+from time import strftime, struct_time
 from typing import Optional, Awaitable, Dict, AsyncIterable, Sequence, Callable
 
 import aiohttp
@@ -372,7 +373,7 @@ class Conversation(Chat):
         return f'<Conversation "{self.title}" (id: {self.id})>'
 
 
-class Message:
+class Message(pydantic.BaseModel):
     """
     Representing existing message from VK_API
 
@@ -381,20 +382,17 @@ class Message:
 
     """
 
-    @lru_cache
-    def __init__(self, text: str,
-                 date: struct_time,
-                 conversation_message_id: int,
-                 sender: User,
-                 chat: Chat):
-        self.date: struct_time = date
-        self.text: str = text
-        self.sender: User = sender
-        self.chat: Chat = chat
-        self.conversation_message_id: int = conversation_message_id
+    date: datetime.datetime
+    text: str
+    sender: User
+    chat: Chat
+    conversation_message_id: int
+
+    class Config:
+        arbitrary_types_allowed = True
 
     def __str__(self):
-        return f'Message from {self.sender}{f" in {self.chat}" if self.chat != "лс" else ""}: {self.text}'
+        return f'Message from {self.sender}{f" in {self.chat}" if isinstance(self.chat, Conversation) else ""}: {self.text}'
 
     def __repr__(self):
         return f'<{str(self)}>'
@@ -1017,11 +1015,10 @@ class EventServer(ABC):
                 message_dict = event['object']['message']
                 _wait_user = create_task(self.vk_session.get_user(message_dict['from_id']))
                 _wait_chat = create_task(self.vk_session.get_chat(message_dict['peer_id']))
-                context |= {'message': Message(message_dict['text'],
-                                               localtime(message_dict['date']),
-                                               message_dict['conversation_message_id'],
-                                               (await _wait_user),
-                                               await _wait_chat),
+                message_dict['sender'] = await _wait_user
+                message_dict['chat'] = await _wait_chat
+                print(*message_dict.items())
+                context |= {'message': Message(**message_dict),
                             'client_info': event['object']['client_info']}
         return event_type, context
 
