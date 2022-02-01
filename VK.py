@@ -12,7 +12,6 @@ from argparse import ArgumentParser
 from asyncio import Task, run, gather, create_task
 from functools import lru_cache, update_wrapper
 from random import randint
-from time import strftime, struct_time
 from typing import Optional, Awaitable, Dict, AsyncIterable, Sequence, Callable
 
 import aiohttp
@@ -195,9 +194,9 @@ class Session:
                 chat_dict['admins'] = await self.get_users(
                     [*filter(lambda x: x > 0, [chat_dict['chat_settings']['owner_id'],
                                                *chat_dict['chat_settings']['admin_ids']])])
-                Session._chats_cache[chat_id] = Conversation(chat_dict, self)
+                Session._chats_cache[chat_id] = Conversation(chat_dict)
             else:
-                Session._chats_cache[chat_id] = PrivateChat(chat_dict, self)
+                Session._chats_cache[chat_id] = PrivateChat(chat_dict)
         return Session._chats_cache[chat_id]
 
     async def execute(self, code: str, func_v: int = 1) -> dict:
@@ -276,6 +275,57 @@ return {{"message":messages.items[0],
             params['forward'] = json.dumps(forward_message)
         return await self.method(method, params)
 
+    async def reply(self, message: 'Message', text: str = '', attachments: list | None = None,
+                    sticker: int | None = None):
+        """
+
+        Args:
+            message: message to reply
+            text: text of replying message
+            attachments: attachments of the replying message
+            sticker: sticker
+
+        Returns:
+
+        """
+        forward_message = {'peer_id': message.chat.id,
+                           'conversation_message_ids': [message.conversation_message_id],
+                           'is_reply': 1}
+
+        return await self.send_message(chat=message.chat,
+                                       text=text,
+                                       forward_message=forward_message,
+                                       attachments=attachments,
+                                       sticker=sticker)
+
+    async def forward(self,
+                      messages: list['Message'],
+                      chat: 'Chat',
+                      text: str = '',
+                      attachments: list | None = None,
+                      sticker: int | None = None):
+        """
+
+        Args:
+            messages: message to reply
+            chat: where to send message
+            text: text of replying message
+            attachments: attachments of the replying message
+            sticker: sticker
+
+        Returns:
+
+        """
+        forward_message = {'peer_id': chat.id,
+                           'conversation_message_ids': [message.conversation_message_id for message in messages],
+                           'is_reply': 0}
+
+        return await self.send_message(chat=chat,
+                                       text=text,
+                                       forward_message=forward_message,
+                                       attachments=attachments,
+                                       sticker=sticker)
+
 
 class User(pydantic.BaseModel):
     """
@@ -314,8 +364,7 @@ class Chat:
     Represents chat from VK_API
     """
 
-    def __init__(self, chat_dict, session: Session):
-        self.session = session
+    def __init__(self, chat_dict):
         self.id = chat_dict['peer']['id']
 
     def __eq__(self, other):
@@ -324,32 +373,10 @@ class Chat:
     def __hash__(self):
         return hash(self.id)
 
-    async def send(self,
-                   text: str = '',
-                   attachments: list = None,
-                   forward_message: dict = None,
-                   sticker: int | None = None) -> dict:
-        """
-        Shortcut Session.send_message
-        Args:
-            text:
-            attachments:
-            forward_message:
-            sticker:
-
-        Returns:
-
-        """
-        return await self.session.send_message(chat=self,
-                                               text=text,
-                                               attachments=attachments,
-                                               forward_message=forward_message,
-                                               sticker=sticker)
-
 
 class PrivateChat(Chat):
-    def __init__(self, chat_dict, session):
-        super(PrivateChat, self).__init__(chat_dict, session)
+    def __init__(self, chat_dict):
+        super(PrivateChat, self).__init__(chat_dict)
 
     def __str__(self):
         return 'ЛС'
@@ -359,8 +386,8 @@ class PrivateChat(Chat):
 
 
 class Conversation(Chat):
-    def __init__(self, chat_dict, session):
-        super(Conversation, self).__init__(chat_dict, session)
+    def __init__(self, chat_dict):
+        super(Conversation, self).__init__(chat_dict)
         self.title = chat_dict['chat_settings']['title']
         self.owner = chat_dict['admins'][0]
         self.admins = chat_dict['admins'][1:]
@@ -642,7 +669,7 @@ class Bot(EventHandler):
         await self.regexes.handle_regex(message)
 
     async def on_message_edit(self, message: Message):
-        logging.info(f'{message} edited at {strftime("%x %X", message.date)}:\n{message.text}')
+        logging.info(f'{message} edited at {message.date.strftime("%x %X")}:\n{message.text}')
 
     def add_command(self, command: 'Command'):
         self.commands.add_command(command)
@@ -791,7 +818,8 @@ class Command:
                  aliases: list[str] = None,
                  access_level: AccessLevel = AccessLevel.USER,
                  message_if_deny: str = 'Access denied',
-                 use_doc: bool = False):
+                 use_doc: bool = False,
+                 on_event: EventType = EventType.MESSAGE_NEW):
         """
         Args:
             func: function that will be converted into Command-object

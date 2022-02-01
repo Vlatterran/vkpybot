@@ -57,11 +57,6 @@ You can add `message` argument to the command-function to gain access to the mes
     def hi(message):
         return f'Hi, {message.sender}!'
 
-Also, you can reply to the message manually
-
-    bot.command()
-    async def hi(message):
-        await message.reply('Hi, {message.sender}!')
 
 > Framework will automatically use the returned string as text of message to reply and ignore all other returned objects (including None)
 
@@ -69,6 +64,7 @@ Also, you can reply to the message manually
 ## AccessLevel
 
 There are 3 access levels now
+
 1. USER - every user in conversations
 2. ADMIN - admins of conversation and any user in private chat with bot
 3. BOT_ADMIN - user, that was declared as `bot_admin`
@@ -80,3 +76,18 @@ You can write functions, that will be automatically called if message matches gi
     bot.regex('.*hi.*')
     async def regex_hi(message):
         await message.reply('Your message contains hi')
+
+## Message
+
+~~Some description~~
+
+### Fields
+
+- `date`- [time.struct_time](https://docs.python.org/3/library/time.html#time.struct_time) - sending time of message
+- `text` str
+- `chat` - [Chat](#Chat) object, where message was send
+- `sender` - [User](#User) object, who send the message
+
+## Chat
+
+## User
