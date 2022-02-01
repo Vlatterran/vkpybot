@@ -20,18 +20,11 @@ def main():
         По умолчанию используется текущая дата
 
         Args:
-            message: Message with command
             day: день, на который будет выдано расписание
         Returns:
             None
         """
-        result = ''
-        args = ['']
-        if day != '':
-            args[0] = day
-        for text in Schedule.show(args):
-            result += text + '\n\n'
-        return result
+        return Schedule.lectures(day)
 
     @bot.command('week', names=['неделя'])
     def week():
