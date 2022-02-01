@@ -163,6 +163,8 @@ class Schedule:
         2: 'Среда',
         3: 'Четверг',
         4: 'Пятница',
+        5: 'Суббота',
+        6: 'Воскресенье'
     }
     ru_dec = {
         'Понедельник': 0,
@@ -170,6 +172,8 @@ class Schedule:
         'Среда': 2,
         'Четверг': 3,
         'Пятница': 4,
+        'Суббота': 5,
+        'Воскресенье': 6
     }
 
     @classmethod
@@ -202,15 +206,46 @@ class Schedule:
                     is_even = 'Числитель' if is_even == 'Знаменатель' else 'Знаменатель'
                 else:
                     week = 'этой'
-                result = f'Расписание на {day if day[-1] != "а" else day[:len(day) - 1] + "у"} {week} недели:'
+                result = f'Расписание на {day if day[-1] != "а" else day[:- 1] + "у"} {week} недели:'
             else:
                 result = 'Не удалось найти расписание на указанный день'
             if result != 'Не удалось найти расписание на указанный день':
                 day_sch = cls.schedule[day][is_even]
                 for i in day_sch:
-                    result += f"\n{'='*40}\n{i['Время занятий']}: {i['Наименование дисциплины']}\
+                    result += f"\n{'=' * 40}\n{i['Время занятий']}: {i['Наименование дисциплины']}\
                     \n{i['Преподаватель']} | {i['Аудитория']} | {i['Вид занятий']}"
             yield result
+
+    @classmethod
+    def lectures(cls, day: str):
+        date_regex = r'(\b(0?[1-9]|[1-2][0-9]|3[0-1])[\.\\]([1][0-2]|0?[1-9])\b)'
+        if re.match(date_regex, day):
+            date = [*map(int, re.split(r'[.\\-]', day))]
+            requested_time = datetime.datetime(day=date[0], month=date[1], year=time.localtime().tm_year).timetuple()
+        else:
+            requested_time = time.localtime()
+            d = day.lower()
+            if d == 'завтра':
+                requested_time += datetime.timedelta(days=1)
+            elif d in map(str.lower, *cls.ru_dec):
+                if requested_time.tm_wday < cls.ru_dec[day.capitalize()]:
+                    pass
+        try:
+            week_day = cls.dec_ru[requested_time.tm_wday]
+            week_type = 'Числитель' if cls.is_week_even(requested_time) else 'Знаменатель'
+            requested_schedule = cls.schedule[week_day][week_type]
+            result = f'Расписание на {time.strftime("%d.%m.%Y", requested_time)} ' \
+                     f'({week_day.lower()}/{week_type.lower()})'
+            for i in requested_schedule:
+                result += f"\n{'=' * 40}\n{i['Время занятий']}: {i['Наименование дисциплины']}\
+                \n{i['Преподаватель']} | {i['Аудитория']} | {i['Вид занятий']}"
+            return result
+        except KeyError:
+            return 'Не удалось найти расписание на указанный день'
+
+    @staticmethod
+    def is_week_even(day: time.struct_time):
+        return ((day.tm_yday + datetime.datetime(day=1, month=1, year=2022).weekday()) // 7) % 2 == 1
 
     async def time_to_next_lecture(self):
         while True:
@@ -243,26 +278,5 @@ class Schedule:
                     await asyncio.sleep(DAY / 2)
 
 
-async def test():
-    a = 1
-    while True:
-        yield a
-        a += 1
-        await asyncio.sleep(2)
-
-
-async def test2():
-    a = 1
-    while True:
-        yield a
-        a += 1
-        await asyncio.sleep(2)
-
-
-async def main():
-    async for text in test():
-        print(text)
-
-
 if __name__ == '__main__':
-    asyncio.run(main())
+    print(Schedule.lectures('Сегодня'))
