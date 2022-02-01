@@ -225,9 +225,12 @@ class Schedule:
         else:
             requested_time = time.localtime()
             d = day.lower()
+            if d == '':
+                pass
             if d == 'завтра':
                 requested_time += datetime.timedelta(days=1)
-            elif d in map(str.lower, *cls.ru_dec):
+            elif d in map(str.lower, cls.ru_dec):
+                pass
                 if requested_time.tm_wday < cls.ru_dec[day.capitalize()]:
                     pass
         try:
