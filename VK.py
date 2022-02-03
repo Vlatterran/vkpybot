@@ -332,7 +332,6 @@ class User(pydantic.BaseModel):
     Represent user from VK_API
 
     Attributes:
-        id (int): ID of user
     """
     id: int
     first_name: str
@@ -404,9 +403,6 @@ class Message(pydantic.BaseModel):
     """
     Representing existing message from VK_API
 
-    Attributes:
-        text (str): text of message
-
     """
 
     date: datetime.datetime
@@ -419,30 +415,11 @@ class Message(pydantic.BaseModel):
         arbitrary_types_allowed = True
 
     def __str__(self):
-        return f'Message from {self.sender}{f" in {self.chat}" if isinstance(self.chat, Conversation) else ""}: {self.text}'
+        in_chat = f" in {self.chat}" if isinstance(self.chat, Conversation) else ""
+        return f'Message from {self.sender}{in_chat}: {self.text}'
 
     def __repr__(self):
         return f'<{str(self)}>'
-
-    async def reply(self, text: str = '', attachments: list | None = None, sticker: int | None = None):
-        """
-
-        Args:
-            text: text of replying message
-            attachments: attachments of the replying message
-            sticker: sticker
-
-        Returns:
-
-        """
-        forward_message = {'peer_id': self.chat.id,
-                           'conversation_message_ids': [self.conversation_message_id],
-                           'is_reply': 1}
-
-        return await self.chat.send(text=text,
-                                    forward_message=forward_message,
-                                    attachments=attachments,
-                                    sticker=sticker)
 
 
 class EventHandler:
@@ -665,7 +642,7 @@ class Bot(EventHandler):
         if len(message.text) > 1 and message.text[0] == '!':
             result = await self.commands.handle_command(message)
             if isinstance(result, str):
-                await self.session.send_message(message.chat, result)
+                await self.session.reply(message, result)
         await self.regexes.handle_regex(message)
 
     async def on_message_edit(self, message: Message):
@@ -1045,7 +1022,6 @@ class EventServer(ABC):
                 _wait_chat = create_task(self.vk_session.get_chat(message_dict['peer_id']))
                 message_dict['sender'] = await _wait_user
                 message_dict['chat'] = await _wait_chat
-                print(*message_dict.items())
                 context |= {'message': Message(**message_dict),
                             'client_info': event['object']['client_info']}
         return event_type, context
