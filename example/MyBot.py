@@ -30,19 +30,13 @@ def main():
     def week():
         pass
 
-    @bot.command('уведомления')
-    async def notifications(message: VK.Message):
-        await message.reply('Уведомления включены')
-        async for text in Schedule().time_to_next_lecture():
-            await message.chat.send(text)
-
     @bot.command(access_level=VK.AccessLevel.BOT_ADMIN)
     def cache():
         return bot.session.cache
 
     @bot.command(access_level=VK.AccessLevel.BOT_ADMIN)
     async def logs(message: VK.Message):
-        await message.reply(attachments=[await bot.session.upload_document('logs\\log.log', message.chat)])
+        await bot.session.reply(message, attachments=[await bot.session.upload_document('logs\\log.log', message.chat)])
 
     @bot.command()
     async def timer(delay: int = 10):
