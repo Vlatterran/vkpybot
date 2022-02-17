@@ -223,7 +223,7 @@ class Schedule:
             date = [*map(int, re.split(r'[.\\-]', day))]
             requested_time = datetime.datetime(day=date[0], month=date[1], year=time.localtime().tm_year).timetuple()
         else:
-            requested_time = datetime.now()
+            requested_time = datetime.datetime.now()
             d = day.lower()
             if d == '':
                 pass
