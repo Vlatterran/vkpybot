@@ -223,7 +223,7 @@ class Schedule:
             date = [*map(int, re.split(r'[.\\-]', day))]
             requested_time = datetime.datetime(day=date[0], month=date[1], year=time.localtime().tm_year).timetuple()
         else:
-            requested_time = time.localtime()
+            requested_time = datetime.now()
             d = day.lower()
             if d == '':
                 pass
@@ -233,6 +233,7 @@ class Schedule:
                 pass
                 if requested_time.tm_wday < cls.ru_dec[day.capitalize()]:
                     pass
+            requested_time = requested_time.timetuple()
         try:
             week_day = cls.dec_ru[requested_time.tm_wday]
             week_type = 'Числитель' if cls.is_week_even(requested_time) else 'Знаменатель'
