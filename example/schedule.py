@@ -1,7 +1,9 @@
 import asyncio
 import datetime
+import logging
 import re
 import time
+import traceback
 
 MINUTE = 60
 HOUR = MINUTE * 60
@@ -221,24 +223,22 @@ class Schedule:
         date_regex = r'(\b(0?[1-9]|[1-2][0-9]|3[0-1])[\.\\]([1][0-2]|0?[1-9])\b)'
         if re.match(date_regex, day):
             date = [*map(int, re.split(r'[.\\-]', day))]
-            requested_time = datetime.datetime(day=date[0], month=date[1], year=time.localtime().tm_year).timetuple()
+            requested_date = datetime.datetime(day=date[0], month=date[1], year=time.localtime().tm_year)
         else:
-            requested_time = datetime.datetime.now()
-            d = day.lower()
+            requested_date = datetime.datetime.now()
+            d = day.title()
             if d == '':
                 pass
-            if d == 'завтра':
-                requested_time += datetime.timedelta(days=1)
-            elif d in map(str.lower, cls.ru_dec):
-                pass
-                if requested_time.tm_wday < cls.ru_dec[day.capitalize()]:
-                    pass
-            requested_time = requested_time.timetuple()
+            if d == 'Завтра':
+                requested_date += datetime.timedelta(days=1)
+            elif d in cls.ru_dec:
+                requested_date += datetime.timedelta(days=(cls.ru_dec[d] - requested_date.weekday()) % 7)
         try:
-            week_day = cls.dec_ru[requested_time.tm_wday]
-            week_type = 'Числитель' if cls.is_week_even(requested_time) else 'Знаменатель'
+            requested_date = requested_date.timetuple()
+            week_day = cls.dec_ru[requested_date.tm_wday]
+            week_type = 'Числитель' if cls.is_week_even(requested_date) else 'Знаменатель'
             requested_schedule = cls.schedule[week_day][week_type]
-            result = f'Расписание на {time.strftime("%d.%m.%Y", requested_time)} ' \
+            result = f'Расписание на {time.strftime("%d.%m.%Y", requested_date)} ' \
                      f'({week_day.lower()}/{week_type.lower()})'
             for i in requested_schedule:
                 result += f"\n{'=' * 40}\n{i['Время занятий']}: {i['Наименование дисциплины']}\
