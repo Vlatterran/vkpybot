@@ -1,6 +1,9 @@
 /venv
-example/config.py
 /ignore
 /.idea
-/example/logs
+/.vscode
+/logs
 **/__pycache__
+/config.yaml
+/dist
+/dist/*/**
