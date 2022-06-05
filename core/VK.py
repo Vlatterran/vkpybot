@@ -643,7 +643,8 @@ class Bot(EventHandler):
             result = await self.commands.handle_command(message)
             if isinstance(result, str):
                 await self.session.reply(message, result)
-        await self.regexes.handle_regex(message)
+        else:
+            await self.regexes.handle_regex(message)
 
     async def on_message_edit(self, message: Message):
         logging.info(f'{message} edited at {message.date.strftime("%x %X")}:\n{message.text}')
@@ -987,8 +988,7 @@ class RegexHandler:
         tasks = []
         for r in self.regexes:
             tasks.append(asyncio.create_task(r(message)))
-        for t in tasks:
-            await t
+        await asyncio.gather(*tasks)
 
 
 class EventServer(ABC):
