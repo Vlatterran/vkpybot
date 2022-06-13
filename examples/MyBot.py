@@ -1,12 +1,23 @@
 import asyncio
-
-import src.core.VK as VK
-from schedule import Schedule
+import logging
+import time
+import pathlib
+import yaml
+import core.VK as VK
+from examples.schedule import Schedule
 
 
 def main():
+    
     try:
-        from config import token, bot_admin as admin
+        config_file = 'config.yaml'
+        with open(config_file, 'r') as file:
+            config= yaml.safe_load(file)
+            print(config)
+        token=config["token"]
+        log_path=config["log_path"]
+        admin=config["bot_admin"]
+
     except ImportError:
         import os
         token = os.environ['token']

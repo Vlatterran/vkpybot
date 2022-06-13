@@ -9,10 +9,9 @@ import logging.handlers
 import re
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser
-from asyncio import Task, run, gather, create_task
 from functools import lru_cache, update_wrapper
 from random import randint
-from typing import Optional, Awaitable, Dict, AsyncIterable, Sequence, Callable
+from typing import Iterable, Optional, Awaitable, Dict, AsyncIterable, Sequence, Callable
 
 import aiohttp
 import docstring_parser
@@ -63,7 +62,8 @@ class Session:
         resp = (await get(f'{self.__base_url}{method}', params | self.session_params))
         # logging.debug(f'(response){resp}')
         if 'error' in resp:
-            raise Exception(f"code {resp['error']['error_code']}: {resp['error']['error_msg']}")
+            raise Exception(
+                f"code {resp['error']['error_code']}: {resp['error']['error_msg']}")
         return resp['response']
 
     def method_sync(self, method: str, params: Optional[dict] = None) -> dict:
@@ -83,7 +83,8 @@ class Session:
         params |= self.session_params
         resp = requests.get(url, params).json()
         if 'error' in resp:
-            raise Exception(f"code {resp['error']['error_code']}: {resp['error']['error_msg']}")
+            raise Exception(
+                f"code {resp['error']['error_code']}: {resp['error']['error_msg']}")
         return resp['response']
 
     @property
@@ -114,7 +115,8 @@ class Session:
                 resp = await session.post(url=upload_url, data=file)
                 photo: dict = json.loads(await resp.text())
             response = (await self.method(method='photos.saveMessagesPhoto', params=photo))[0]
-            Session._image_cache[file['photo']] = f'photo{response["owner_id"]}_{response["id"]}'
+            Session._image_cache[file['photo']
+                                 ] = f'photo{response["owner_id"]}_{response["id"]}'
         return Session._image_cache[file['photo']]
 
     async def upload_document(self, doc: str, chat: 'Chat') -> str:
@@ -160,8 +162,10 @@ class Session:
     async def get_users(self, users: Sequence[int]) -> list['User']:
         if len(not_cached := [*filter(lambda x: x not in Session._users_cache, users)]) > 0:
             if Session._get_user_request_task is None:
-                Session._get_user_request = Session.GetUsersRequest(not_cached, self)
-                Session._get_user_request_task = asyncio.create_task(Session._get_user_request())
+                Session._get_user_request = Session.GetUsersRequest(
+                    not_cached, self)
+                Session._get_user_request_task = asyncio.create_task(
+                    Session._get_user_request())
                 _users = await Session._get_user_request_task
                 for user in _users:
                     user = User(**user)
@@ -194,9 +198,10 @@ class Session:
                 chat_dict['admins'] = await self.get_users(
                     [*filter(lambda x: x > 0, [chat_dict['chat_settings']['owner_id'],
                                                *chat_dict['chat_settings']['admin_ids']])])
-                Session._chats_cache[chat_id] = Conversation(chat_dict)
+                chat_cls = Conversation
             else:
-                Session._chats_cache[chat_id] = PrivateChat(chat_dict)
+                chat_cls = PrivateChat
+            Session._chats_cache[chat_id] = chat_cls(chat_dict, session=self)
         return Session._chats_cache[chat_id]
 
     async def execute(self, code: str, func_v: int = 1) -> dict:
@@ -263,9 +268,9 @@ return {{"message":messages.items[0],
         if text == '' and (attachments or sticker) is None:
             raise ValueError("Can't send empty message")
         params = {
-            f'peer_id': chat.id,
-            f'message': text,
-            f'random_id': randint(1, 2147123123),
+            'peer_id': chat.id,
+            'message': text,
+            'random_id': randint(1, 2147123123),
         }
         if sticker is not None:
             params['sticker_id'] = sticker
@@ -275,7 +280,9 @@ return {{"message":messages.items[0],
             params['forward'] = json.dumps(forward_message)
         return await self.method(method, params)
 
-    async def reply(self, message: 'Message', text: str = '', attachments: list | None = None,
+    async def reply(self,
+                    message: 'Message', text: str = '',
+                    attachments: list | None = None,
                     sticker: int | None = None):
         """
 
@@ -361,10 +368,23 @@ class User(pydantic.BaseModel):
 class Chat:
     """
     Represents chat from VK_API
+
     """
 
-    def __init__(self, chat_dict):
+    def __init__(self, chat_dict, session):
         self.id = chat_dict['peer']['id']
+        self.session = session
+
+    async def send(self,
+             text: str = '',
+             attachments: list = None,
+             forward_message: dict = None,
+             sticker: int | None = None):
+        self.session.send_message(chat=self,
+                                  text=text,
+                                  attachments=attachments,
+                                  forward_message=forward_message,
+                                  sticker=sticker,)
 
     def __eq__(self, other):
         return isinstance(other, Chat) and self.id == other.id
@@ -374,8 +394,8 @@ class Chat:
 
 
 class PrivateChat(Chat):
-    def __init__(self, chat_dict):
-        super(PrivateChat, self).__init__(chat_dict)
+    def __init__(self,*args, **kwargs):
+        super(PrivateChat, self).__init__(*args, **kwargs)
 
     def __str__(self):
         return 'ЛС'
@@ -385,8 +405,8 @@ class PrivateChat(Chat):
 
 
 class Conversation(Chat):
-    def __init__(self, chat_dict):
-        super(Conversation, self).__init__(chat_dict)
+    def __init__(self, chat_dict, **kwargs):
+        super(Conversation, self).__init__(chat_dict, **kwargs)
         self.title = chat_dict['chat_settings']['title']
         self.owner = chat_dict['admins'][0]
         self.admins = chat_dict['admins'][1:]
@@ -410,12 +430,18 @@ class Message(pydantic.BaseModel):
     sender: User
     chat: Chat
     conversation_message_id: int
+    session: Session
 
+    async def reply(self,
+              text: str = '',
+              attachments: list | None = None,
+              sticker: int | None = None):
+        await self.session.reply(text=text,attachments=attachments,sticker=sticker,message=self)
     class Config:
         arbitrary_types_allowed = True
-
     def __str__(self):
-        in_chat = f" in {self.chat}" if isinstance(self.chat, Conversation) else ""
+        in_chat = f" in {self.chat}" if isinstance(
+            self.chat, Conversation) else ""
         return f'Message from {self.sender}{in_chat}: {self.text}'
 
     def __repr__(self):
@@ -599,7 +625,8 @@ class Bot(EventHandler):
         self.aliases: dict[str, str] = {}
         log_file = f'{log_file}'
         log_form = "{asctime} - [{levelname}] - ({filename}:{lineno}).{funcName} - {message}"  # noqa
-        logging.StreamHandler().setFormatter(logging.Formatter(log_form, style='{'))
+        logging.StreamHandler().setFormatter(
+            logging.Formatter(log_form, style='{'))
         logging.basicConfig(
             handlers=[logging.StreamHandler(),
                       logging.handlers.TimedRotatingFileHandler(filename=log_file,
@@ -647,7 +674,8 @@ class Bot(EventHandler):
             await self.regexes.handle_regex(message)
 
     async def on_message_edit(self, message: Message):
-        logging.info(f'{message} edited at {message.date.strftime("%x %X")}:\n{message.text}')
+        logging.info(
+            f'{message} edited at {message.date.strftime("%x %X")}:\n{message.text}')
 
     def add_command(self, command: 'Command'):
         self.commands.add_command(command)
@@ -683,7 +711,8 @@ class Bot(EventHandler):
             kwargs = {}
             if message_if_deny is not None:
                 kwargs['message_if_deny'] = message_if_deny
-            self.add_command(command := Command(func, name, names, access_level, use_doc=use_doc, **kwargs))
+            self.add_command(command := Command(
+                func, name, names, access_level, use_doc=use_doc, **kwargs))
             return command
 
         return wrapper
@@ -772,7 +801,8 @@ class GroupSession(Session):
             api_version: version af VK_API that you use
         """
         super().__init__(access_token, api_version)
-        self.session_params |= {'group_id': self.method_sync('groups.getById')[0]['id']}
+        self.session_params |= {'group_id': self.method_sync('groups.getById')[
+            0]['id']}
 
     async def get_long_poll_server(self):
         return LongPollServer(self, **await self.get_long_poll_server_row())
@@ -818,7 +848,8 @@ class Command:
         self._func = func
         self.aliases = aliases
         self.access_level = access_level
-        parser = ArgumentParser(description=f'Command {self.name}', exit_on_error=False)
+        parser = ArgumentParser(
+            description=f'Command {self.name}', exit_on_error=False)
         self._use_message = False
         for name, param in inspect.signature(self).parameters.items():
             if name == 'message':
@@ -842,7 +873,8 @@ class Command:
         self.parser = parser
         self.names = [self.name, *self.aliases]
         self.help = self._convert_signature_to_help(use_doc)
-        self.short_help = self.name + (f'({", ".join(self.aliases)})' if self.aliases else '')
+        self.short_help = self.name + \
+            (f'({", ".join(self.aliases)})' if self.aliases else '')
 
     def _check_permissions(self, message: Message) -> bool:
         """
@@ -995,10 +1027,10 @@ class EventServer(ABC):
     def __init__(self, vk_session: GroupSession):
         self.vk_session = vk_session
         self.listeners: list[EventHandler] = []
-        self.tasks: list[Task] = []
+        self.tasks: list[asyncio.Task] = []
 
     def create_task(self, coroutine):
-        self.tasks.append(task := create_task(coroutine))
+        self.tasks.append(task := asyncio.create_task(coroutine))
         return task
 
     def bind_listener(self, listener: EventHandler):
@@ -1018,11 +1050,13 @@ class EventServer(ABC):
         match event_type:
             case EventType.MESSAGE_NEW:
                 message_dict = event['object']['message']
-                _wait_user = create_task(self.vk_session.get_user(message_dict['from_id']))
-                _wait_chat = create_task(self.vk_session.get_chat(message_dict['peer_id']))
+                _wait_user = asyncio.create_task(
+                    self.vk_session.get_user(message_dict['from_id']))
+                _wait_chat = asyncio.create_task(
+                    self.vk_session.get_chat(message_dict['peer_id']))
                 message_dict['sender'] = await _wait_user
                 message_dict['chat'] = await _wait_chat
-                context |= {'message': Message(**message_dict),
+                context |= {'message': Message(session=self.vk_session,**message_dict),
                             'client_info': event['object']['client_info']}
         return event_type, context
 
@@ -1053,7 +1087,7 @@ class CallBackServer(EventServer):
 
     def listen(self):
         web.run_app(self.app, host=self.host, port=self.port)
-        run(gather(self.tasks))
+        asyncio.run(asyncio.gather(self.tasks))
 
 
 class LongPollServer(EventServer):
@@ -1063,14 +1097,15 @@ class LongPollServer(EventServer):
         self.key = key
         self.ts = ts
 
-    async def check(self) -> AsyncIterable[tuple[EventType, Dict]]:
+    async def check(self) -> Iterable[Dict]:
         """
         Checks for new events on long_poll_server, updates long_poll_server information if failed to get events
 
-        Yields:
-            tuple
+        Returns:
+            Iterable
                 event and context dictionary
         """
+        logging.debug('ENTERING CHECK METHOD')
         result = None
         retries = 0
         while result is None:
@@ -1080,9 +1115,10 @@ class LongPollServer(EventServer):
                           'ts': self.ts,
                           'wait': 25}
                 result = await get(self.server, params)
+                
             except Exception:
                 logging.exception(f'try {(retries := retries + 1)}')
-
+        logging.debug(result)
         if 'failed' in result:
             error_code = result['failed']
             if error_code == 1:
@@ -1092,24 +1128,25 @@ class LongPollServer(EventServer):
                 logging.info('Updating long_poll_server')
                 await self.__update()
             else:
-                logging.error(f'Unexpected error_code code: {error_code} in {result}')
+                logging.error(
+                    f'Unexpected error_code code: {error_code} in {result}')
         else:
             self.ts = result['ts']
             events = result['updates']
-            for event in events:
-                yield event
+            logging.debug(events)
+            return events
 
     def listen(self) -> None:
-        run(self._listen())
+        asyncio.run(self._listen())
 
     async def _listen(self) -> None:
         try:
             while True:
-                async for event in self.check():
+                for event in await self.check():
                     self.notify_listeners(event)
         except Exception as e:
             logging.exception(e)
-            await gather(self.tasks)
+            await asyncio.gather(self.tasks)
 
     async def __update(self):
         new = await self.vk_session.get_long_poll_server_row()

@@ -48,6 +48,7 @@ def main():
         # await message.reply(f'{a} {b} {c} {d} {e} {f} {g}')
         print(message.chat)
         await message.reply(f'Hello, {message.sender}')
+        await message.chat.send(f'Hello, {message.sender}')
         time.sleep(10)
         await message.reply(f'{message.chat}')
         # print(await bot.session.get_by_conversation_message_id(message.chat.id, message.conversation_message_id))
