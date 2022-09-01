@@ -1,9 +1,9 @@
 import asyncio
 import datetime
 import json
+import logging
 import re
 import time
-from pprint import pprint
 
 import requests
 from bs4 import BeautifulSoup
@@ -14,7 +14,7 @@ DAY = HOUR * 24
 
 
 class Schedule:
-    with open('schedule.json', 'r', encoding='utf8') as f:
+    with open('./schedule.json', 'r', encoding='utf8') as f:
         schedule = json.load(f)
 
     dec_ru = {
@@ -139,8 +139,8 @@ class Schedule:
                 else:
                     await asyncio.sleep(DAY / 2)
 
-    @staticmethod
-    def parse(group: str):
+    @classmethod
+    def parse(cls, group: str):
         soup = BeautifulSoup(requests.post('https://www.madi.ru/tplan/tasks/task3,7_fastview.php',
                                            {'step_no': 1, 'task_id': 7}).text)
         _groups = dict(map(lambda x: (x.attrs['value'], x.text), soup.select('ul>li')))
@@ -149,7 +149,6 @@ class Schedule:
         for group_id, group_name in _groups.items():
             if group_name.lower() != group.lower():
                 continue
-            print(group_id, group_name)
             response = requests.post('https://www.madi.ru/tplan/tasks/tableFiller.php',
                                      {'tab': 7, 'gp_name': group_name, 'gp_id': group_id})
             soup = BeautifulSoup(response.text, features='lxml')
@@ -194,14 +193,13 @@ class Schedule:
                             day.setdefault('Знаменатель', []).append(line)
                         else:
                             day.setdefault(context['frequency'], []).append(line)
-                        print(line, *rooms)
                     except Exception as e:
                         print(type(e), e, f'\n{context}')
+                        logging.exception(e)
                         break
-        with open('schedule.json', 'w', encoding='utf8') as f:
+        with open('./schedule.json', 'w', encoding='utf8') as f:
             json.dump(schedule, f, indent=4, ensure_ascii=False)
-
-        pprint(schedule, width=120)
+        cls.schedule = schedule
 
 
 if __name__ == '__main__':
