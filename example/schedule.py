@@ -2,6 +2,7 @@ import asyncio
 import datetime
 import json
 import logging
+import os
 import re
 import time
 
@@ -14,7 +15,8 @@ DAY = HOUR * 24
 
 
 class Schedule:
-    with open('./schedule.json', 'r', encoding='utf8') as f:
+    schedule_file_path = os.path.join(os.path.dirname(__file__), 'schedule.json')
+    with open(schedule_file_path, 'r', encoding='utf8') as f:
         schedule = json.load(f)
 
     dec_ru = {
@@ -164,7 +166,6 @@ class Schedule:
                 else:
                     context = {'weekday': weekday, 'group': group_name}
                     line = {}
-                    rooms = []
                     for i, cell in enumerate(children):
                         match i:
                             case 0:
@@ -197,7 +198,7 @@ class Schedule:
                         print(type(e), e, f'\n{context}')
                         logging.exception(e)
                         break
-        with open('./schedule.json', 'w', encoding='utf8') as f:
+        with open(cls.schedule_file_path, 'w', encoding='utf8') as f:
             json.dump(schedule, f, indent=4, ensure_ascii=False)
         cls.schedule = schedule
 
