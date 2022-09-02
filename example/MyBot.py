@@ -1,5 +1,3 @@
-import asyncio
-
 import VK
 from schedule import Schedule
 
@@ -27,8 +25,8 @@ def main():
         return Schedule.lectures(day)
 
     @bot.command('week', names=['неделя'])
-    def week():
-        pass
+    def week(type: str = ''):
+        return Schedule.week_lectures(type)
 
     @bot.command(access_level=VK.AccessLevel.BOT_ADMIN)
     def cache():
@@ -38,10 +36,20 @@ def main():
     async def logs(message: VK.Message):
         await bot.session.reply(message, attachments=[await bot.session.upload_document('logs\\log.log', message.chat)])
 
-    @bot.command()
-    async def timer(delay: int = 10):
-        await asyncio.sleep(delay)
-        return 'end'
+    @bot.command('обновить', use_doc=True)
+    async def update(day: str, frequency: str, n: int, field: str, value: str):
+        """
+        Команда для обновления одной записи в расписании
+
+        Args:
+            day: день недели
+            frequency: Тип недели
+            n: номер пары
+            field: поле, которое требуется обновить
+            value: новое значение поля
+        """
+        await Schedule.update(day, frequency, n, field, value)
+        return 'Расписание обновлено'
 
     bot.start()
 
