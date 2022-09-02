@@ -7,6 +7,7 @@ import json
 import logging
 import logging.handlers
 import re
+import shlex
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser
 from asyncio import Task, run, gather, create_task
@@ -864,7 +865,7 @@ class Command:
         if self._check_permissions(message):
             try:
                 # self.parser.print_help(sys.stdout)
-                args = vars(self.parser.parse_args(message.text.split()[1:]))
+                args = vars(self.parser.parse_args(shlex.split(message.text)[1:]))
                 if self._use_message:
                     args['message'] = message
                 if self.__is_coroutine:
