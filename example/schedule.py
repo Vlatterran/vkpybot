@@ -167,7 +167,7 @@ class Schedule:
     @classmethod
     def week_lectures(cls, type: str):
         if type == '':
-            f = 'Знаменатель' if cls.is_week_even(datetime.date.today().timetuple()) else 'Числитель'
+            f = 'Числитель' if cls.is_week_even(datetime.date.today().timetuple()) else 'Знаменатель'
         else:
             f = type.title()
         result = f'Расписание на {f}'
