@@ -1,13 +1,10 @@
 import asyncio
 import datetime
-import json
 import logging
-import os
 import pprint
 import re
 import time
 
-import aiofiles
 import httpx as httpx
 from bs4 import BeautifulSoup
 
@@ -17,9 +14,8 @@ DAY = HOUR * 24
 
 
 class Schedule:
-    schedule_file_path = os.path.join(os.path.dirname(__file__), 'schedule.json')
-    with open(schedule_file_path, 'r', encoding='utf8') as f:
-        schedule: dict = json.load(f)
+    schedule_url = 'https://public.am.files.1drv.com/y4mNUULn5vdiBRILe-NOQkFlicZaBnwhZXr_KRlfWn6EgI1VlWnFGpyAy8bx0Xzkk7I2M5NOF0cZAhs1CMUzC09GqrCtU9rzXn9Otj6OVuTyBJeJaUu3F_WNPPPKqFTXJVMNex6PZZ_0ciaoTOHsPdGVDr5285oTReyv2zdbqA7RuqgPCmbMJKSLaRkdieY2Xt6aNTk2il0zHVsmoHgEfIrpV6rBQYDX13X7BeDesoUWKQ'
+    schedule = httpx.get(schedule_url).json()
 
     dec_ru = {
         0: 'Понедельник',
@@ -183,21 +179,9 @@ class Schedule:
         return result
 
     @classmethod
-    async def update(cls, day: str, frequency: str, n: int, field: str, value: str):
-        day = day.title()
-        frequency = frequency.title()
-        field = field.title()
-        if frequency == 'Еженедельно':
-            cls.schedule[day]['Числитель'][n][field] = value
-            cls.schedule[day]['Знаменатель'][n][field] = value
-        else:
-            cls.schedule[day][frequency][n][field] = value
-        await cls.save()
-
-    @classmethod
-    async def save(cls):
-        async with aiofiles.open(cls.schedule_file_path, 'w', encoding='utf8') as f:
-            await f.write(json.dumps(cls.schedule, indent=4, ensure_ascii=False))
+    async def update(cls):
+        async with httpx.AsyncClient() as client:
+            cls.schedule = (await client.get(cls.schedule_url)).json()
 
 
 if __name__ == '__main__':

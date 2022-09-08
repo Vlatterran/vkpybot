@@ -48,7 +48,7 @@ def main():
             field: поле, которое требуется обновить
             value: новое значение поля
         """
-        await Schedule.update(day, frequency, n, field, value)
+        await Schedule.update()
         return 'Расписание обновлено'
 
     bot.start()
