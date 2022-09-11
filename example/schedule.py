@@ -1,11 +1,11 @@
 import asyncio
 import datetime
 import logging
-import pprint
 import re
 import time
+import urllib.parse
 
-import httpx as httpx
+import httpx
 from bs4 import BeautifulSoup
 
 MINUTE = 60
@@ -14,8 +14,14 @@ DAY = HOUR * 24
 
 
 class Schedule:
-    schedule_url = 'https://public.am.files.1drv.com/y4mNUULn5vdiBRILe-NOQkFlicZaBnwhZXr_KRlfWn6EgI1VlWnFGpyAy8bx0Xzkk7I2M5NOF0cZAhs1CMUzC09GqrCtU9rzXn9Otj6OVuTyBJeJaUu3F_WNPPPKqFTXJVMNex6PZZ_0ciaoTOHsPdGVDr5285oTReyv2zdbqA7RuqgPCmbMJKSLaRkdieY2Xt6aNTk2il0zHVsmoHgEfIrpV6rBQYDX13X7BeDesoUWKQ'
-    schedule = httpx.get(schedule_url).json()
+    onedrive_url = 'https://1drv.ms/t/s!Aj0lqqPqhjDCgwCWwxmWAfKG-eDQ'
+    location_response = httpx.get(onedrive_url)
+    location_url = location_response.headers['location']
+    location = httpx.get(location_url)
+    query = urllib.parse.parse_qs(location.url.query)
+    schedule_url = f'https://api.onedrive.com/drives/{(query[b"resid"][0].split(b"!")[0].decode())}' \
+                   f'/items/{query[b"resid"][0].decode()}/content'
+    schedule = httpx.get(schedule_url, params={'authkey': query[b'authkey'][0].decode()}, follow_redirects=True).json()
 
     dec_ru = {
         0: 'Понедельник',
@@ -157,8 +163,6 @@ class Schedule:
                             logging.exception(e)
                             break
         cls.schedule = schedule
-        pprint.pprint(schedule)
-        await cls.save()
 
     @classmethod
     def week_lectures(cls, type: str):
@@ -181,7 +185,14 @@ class Schedule:
     @classmethod
     async def update(cls):
         async with httpx.AsyncClient() as client:
-            cls.schedule = (await client.get(cls.schedule_url)).json()
+            location_response = client.get(cls.onedrive_url)
+            location_url = (await location_response).headers['location']
+            location = await client.get(location_url)
+            query = urllib.parse.parse_qs(location.url.query)
+            schedule_url = f'https://api.onedrive.com/drives/{(query[b"resid"][0].split(b"!")[0].decode())}' \
+                           f'/items/{query[b"resid"][0].decode()}/content'
+            cls.schedule = (await client.get(schedule_url, params={'authkey': query[b'authkey'][0].decode()},
+                                             follow_redirects=True)).json()
 
 
 if __name__ == '__main__':
