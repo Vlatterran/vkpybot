@@ -1,6 +1,8 @@
 import VK
 from schedule import Schedule
 
+schedule = Schedule(onedrive_url='https://1drv.ms/t/s!Aj0lqqPqhjDCgwCWwxmWAfKG-eDQ')
+
 
 def main():
     try:
@@ -10,6 +12,12 @@ def main():
         token = os.environ['token']
         admin = int(os.environ['admin'])
     bot = VK.Bot(access_token=token, bot_admin_id=admin, log_file='log.log', loglevel=20)
+
+    @bot.on_startup
+    async def init_schedule():
+        global schedule
+        await schedule.init()
+        print('schedule inited')
 
     @bot.command('пары', use_doc=True)
     def lectures(day: str = 'сегодня'):
@@ -22,11 +30,11 @@ def main():
         Returns:
             None
         """
-        return Schedule.lectures(day)
+        return schedule.lectures(day)
 
     @bot.command('week', names=['неделя'])
-    def week(type: str = ''):
-        return Schedule.week_lectures(type)
+    def week(week_type: str = ''):
+        return schedule.week_lectures(week_type)
 
     @bot.command(access_level=VK.AccessLevel.BOT_ADMIN)
     def cache():
@@ -48,7 +56,7 @@ def main():
             field: поле, которое требуется обновить
             value: новое значение поля
         """
-        await Schedule.update()
+        await schedule.update()
         return 'Расписание обновлено'
 
     bot.start()
