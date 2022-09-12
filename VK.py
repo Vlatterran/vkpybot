@@ -10,7 +10,6 @@ import re
 import shlex
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser
-from asyncio import Task, run, gather, create_task
 from functools import lru_cache, update_wrapper
 from random import randint
 from typing import Optional, Awaitable, Dict, AsyncIterable, Sequence, Callable
@@ -589,6 +588,8 @@ class Bot(EventHandler):
             loglevel:
         """
         super().__init__()
+        self._on_startup_async = []
+        self._on_startup_sync = []
         log_file = f'logs/{log_file}'
         self.server: EventServer = event_server
         if session is None:
@@ -636,8 +637,17 @@ class Bot(EventHandler):
             self.server = LongPollServer(self.session,
                                          **self.session.method_sync('groups.getLongPollServer'))
         self.server.bind_listener(self)
+        for i in self._on_startup_sync:
+            i()
+        asyncio.get_event_loop().run_until_complete(asyncio.gather(*(i() for i in self._on_startup_async)))
         self.server.listen()
 
+    def on_startup(self, func):
+        if asyncio.iscoroutinefunction(func):
+            self._on_startup_async.append(func)
+        else:
+            self._on_startup_sync.append(func)
+        
     async def on_message_new(self, message: Message, client_info: dict):
         logging.info(message)
         if len(message.text) > 1 and message.text[0] == '!':
@@ -996,10 +1006,10 @@ class EventServer(ABC):
     def __init__(self, vk_session: GroupSession):
         self.vk_session = vk_session
         self.listeners: list[EventHandler] = []
-        self.tasks: list[Task] = []
+        self.tasks: list[asyncio.Task] = []
 
     def create_task(self, coroutine):
-        self.tasks.append(task := create_task(coroutine))
+        self.tasks.append(task := asyncio.create_task(coroutine))
         return task
 
     def bind_listener(self, listener: EventHandler):
@@ -1019,8 +1029,8 @@ class EventServer(ABC):
         match event_type:
             case EventType.MESSAGE_NEW:
                 message_dict = event['object']['message']
-                _wait_user = create_task(self.vk_session.get_user(message_dict['from_id']))
-                _wait_chat = create_task(self.vk_session.get_chat(message_dict['peer_id']))
+                _wait_user = asyncio.create_task(self.vk_session.get_user(message_dict['from_id']))
+                _wait_chat = asyncio.create_task(self.vk_session.get_chat(message_dict['peer_id']))
                 message_dict['sender'] = await _wait_user
                 message_dict['chat'] = await _wait_chat
                 context |= {'message': Message(**message_dict),
@@ -1054,7 +1064,7 @@ class CallBackServer(EventServer):
 
     def listen(self):
         web.run_app(self.app, host=self.host, port=self.port)
-        run(gather(self.tasks))
+        asyncio.run(asyncio.gather(*self.tasks))
 
 
 class LongPollServer(EventServer):
@@ -1101,7 +1111,7 @@ class LongPollServer(EventServer):
                 yield event
 
     def listen(self) -> None:
-        run(self._listen())
+        asyncio.run(self._listen())
 
     async def _listen(self) -> None:
         try:
@@ -1110,7 +1120,7 @@ class LongPollServer(EventServer):
                     self.notify_listeners(event)
         except Exception as e:
             logging.exception(e)
-            await gather(self.tasks)
+            await asyncio.gather(*self.tasks)
 
     async def __update(self):
         new = await self.vk_session.get_long_poll_server_row()
