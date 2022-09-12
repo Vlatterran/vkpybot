@@ -15,9 +15,9 @@ DAY = HOUR * 24
 
 
 class Schedule:
-    def __init__(self, onedrive_url, schedule):
+    def __init__(self, onedrive_url):
         self.onedrive_url = onedrive_url
-        self.schedule = schedule
+        self.schedule = {}
 
     async def init(self):
         self.schedule = await self.get_schedule(self.onedrive_url)
