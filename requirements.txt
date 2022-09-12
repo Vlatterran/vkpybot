@@ -6,3 +6,4 @@ pydantic==1.10.1
 beautifulsoup4==4.11.1
 aiofiles~=0.8.0
 httpx~=0.23.0
+lxml~=4.9.1
