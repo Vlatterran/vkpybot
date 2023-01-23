@@ -1,5 +1,7 @@
 import asyncio
+import json
 import logging
+import os
 from abc import ABC, abstractmethod
 from typing import AsyncIterable, Dict
 
@@ -40,8 +42,7 @@ class EventServer(ABC):
                 message_dict = event['object']['message']
                 _wait_user = asyncio.create_task(self.vk_session.get_user(message_dict['from_id']))
                 _wait_chat = asyncio.create_task(self.vk_session.get_chat(message_dict['peer_id']))
-                message_dict['sender'] = await _wait_user
-                message_dict['chat'] = await _wait_chat
+                message_dict['sender'], message_dict['chat'] = await asyncio.gather(_wait_user, _wait_chat)
                 context |= {'message': Message(**message_dict),
                             'client_info': event['object']['client_info']}
         return event_type, context
@@ -62,9 +63,7 @@ class CallBackServer(EventServer):
             req = await request.json()
             print(req)
             if req['type'] == 'confirmation':
-                code = (await self.vk_session.method('groups.getCallbackConfirmationCode'))['response']['code']
-                print(code)
-                return web.Response(text=code)
+                return web.Response(text=os.environ['CODE'])
             else:
                 self.notify_listeners(req)
                 return web.Response(text='ok')
@@ -74,6 +73,32 @@ class CallBackServer(EventServer):
     def listen(self):
         web.run_app(self.app, host=self.host, port=self.port)
         asyncio.run(asyncio.gather(*self.tasks))
+
+
+class YandexCloudFunction(EventServer):
+    def __init__(self, vk_session: GroupSession):
+        super().__init__(vk_session)
+
+        async def hello_post(event: dict, context: dict):
+
+            event = json.loads(event['body'])
+            if not isinstance(event, dict):
+                return
+            if event['type'] == 'confirmation':
+                return {'statusCode': 200,
+                        'body': os.environ['CODE']
+                        }
+            else:
+                print(event)
+                await self._notify_listeners(event)
+                return {'statusCode': 200,
+                        'body': 'ok'
+                        }
+
+        self.handler = hello_post
+
+    def listen(self):
+        pass
 
 
 class LongPollServer(EventServer):
