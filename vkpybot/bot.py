@@ -35,8 +35,9 @@ class Bot(EventHandler):
                  bot_admin_id: int = 0,
                  session: 'GroupSession' = None,
                  event_server: 'EventServer' = None,
-                 log_file='',
-                 loglevel=logging.INFO):
+                 log_file=None,
+                 loglevel=logging.INFO,
+                 stdout_log=True):
         """
         Args:
             access_token: API_TOKEN for group
@@ -49,7 +50,6 @@ class Bot(EventHandler):
         super().__init__()
         self._on_startup_async = []
         self._on_startup_sync = []
-        log_file = f'logs/{log_file}'
         self.server: EventServer = event_server
         if session is None:
             self.session = GroupSession(access_token=access_token)
@@ -61,11 +61,15 @@ class Bot(EventHandler):
         self.aliases: dict[str, str] = {}
         log_form = "{asctime} - [{levelname}] - ({filename}:{lineno}).{funcName} - {message}"  # noqa
         logging.StreamHandler().setFormatter(logging.Formatter(log_form, style='{'))
+        handlers = []
+        if stdout_log:
+            handlers.append(logging.StreamHandler())
+        if log_file is not None:
+            handlers.append(logging.handlers.TimedRotatingFileHandler(filename=f'logs/{log_file}',
+                                                                      when='midnight',
+                                                                      interval=1))
         logging.basicConfig(
-            handlers=[logging.StreamHandler(),
-                      logging.handlers.TimedRotatingFileHandler(filename=log_file,
-                                                                when='midnight',
-                                                                interval=1)],
+            handlers=handlers,
             level=loglevel,
             format=log_form,
             style='{',
@@ -106,7 +110,7 @@ class Bot(EventHandler):
             self._on_startup_async.append(func)
         else:
             self._on_startup_sync.append(func)
-        
+
     async def on_message_new(self, message: Message, client_info: dict):
         logging.info(message)
         if len(message.text) > 1 and message.text[0] == '!':
