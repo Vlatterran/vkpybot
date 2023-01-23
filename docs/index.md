@@ -1,10 +1,8 @@
-VK is library that allows to create chatbots for vk easy and fast
-
 # Quickstart
 
 Easiest hi-bot
 
-    from VK import Bot
+    from vkpybot import Bot
 
 
     bot = Bot(api_token)
