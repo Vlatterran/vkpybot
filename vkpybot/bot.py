@@ -37,7 +37,8 @@ class Bot(EventHandler):
                  event_server: 'EventServer' = None,
                  log_file=None,
                  loglevel=logging.INFO,
-                 stdout_log=True):
+                 stdout_log=True,
+                 command_prefix='/'):
         """
         Args:
             access_token: API_TOKEN for group
@@ -55,6 +56,8 @@ class Bot(EventHandler):
             self.session = GroupSession(access_token=access_token)
         else:
             self.session = session
+
+        self.command_prefix = command_prefix
         self.bot_admin: int = bot_admin_id
         self.commands: CommandHandler = CommandHandler(bot_admin=bot_admin_id)
         self.regexes: RegexHandler = RegexHandler()
@@ -113,7 +116,7 @@ class Bot(EventHandler):
 
     async def on_message_new(self, message: Message, client_info: dict):
         logging.info(message)
-        if len(message.text) > 1 and message.text[0] == '!':
+        if len(message.text) > 1 and message.text[0] == self.command_prefix:
             result = await self.commands.handle_command(message)
             if isinstance(result, str):
                 await self.session.reply(message, result)
