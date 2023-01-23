@@ -1,18 +1,18 @@
 import logging
 import time
 
-import VK
+import vkpybot
 from config import token, group_id as group, bot_admin as admin
 
-# session = VK.GroupSession(token, group)
-# server = VK.CallBackServer(session, '192.168.10.96', '8080')
+# session = vkpybot.GroupSession(token, group)
+# server = vkpybot.CallBackServer(session, '192.168.10.96', '8080')
 
-bot = VK.Bot(access_token=token, group_id=group, bot_admin_id=admin,
-             log_file='debuglog.log', loglevel=logging.DEBUG)
+bot = vkpybot.Bot(access_token=token, group_id=group, bot_admin_id=admin,
+                  log_file='debuglog.log', loglevel=logging.DEBUG)
 
 
 @bot.command('test', names=['t', 'testing', 'fisting'], use_doc=True)
-async def test(message: VK.Message, a, b: int = 1, c: float = .1, d: str = 'D', e=1, f=.2, g=''):
+async def test(message: vkpybot.Message, a, b: int = 1, c: float = .1, d: str = 'D', e=1, f=.2, g=''):
     """
     Short description of command
     Args:
@@ -42,7 +42,7 @@ def echo():
 
 
 @bot.regex('test')
-async def test(message: VK.Message):
+async def test(message: vkpybot.Message):
     await message.reply('it works')
 
 
