@@ -12,7 +12,7 @@ from typing import Awaitable, Callable
 import docstring_parser
 
 from vkpybot.events import EventHandler, EventType
-from vkpybot.servers import EventServer, LongPollServer
+from vkpybot.servers import EventServer, LongPollServer, YandexCloudFunction
 from vkpybot.sessions import GroupSession
 from vkpybot.types import PrivateChat, Message
 
@@ -38,7 +38,8 @@ class Bot(EventHandler):
                  log_file=None,
                  loglevel=logging.INFO,
                  stdout_log=True,
-                 command_prefix='/'):
+                 command_prefix='/',
+                 server_type='longpoll'):
         """
         Args:
             access_token: API_TOKEN for group
@@ -51,11 +52,20 @@ class Bot(EventHandler):
         super().__init__()
         self._on_startup_async = []
         self._on_startup_sync = []
-        self.server: EventServer = event_server
         if session is None:
             self.session = GroupSession(access_token=access_token)
         else:
             self.session = session
+        if event_server is None:
+            if server_type == 'longpoll':
+                self.server = LongPollServer(self.session,
+                                             **self.session.method_sync('groups.getLongPollServer'))
+            elif server_type == 'ycf':
+                self.server = YandexCloudFunction(session)
+            else:
+                raise ValueError('Only longpoll or yvf server_type can be created automatically')
+
+        self.server.bind_listener(self)
 
         self.command_prefix = command_prefix
         self.bot_admin: int = bot_admin_id
@@ -99,10 +109,6 @@ class Bot(EventHandler):
         """
         Function that stars event loop of bot
         """
-        if self.server is None:
-            self.server = LongPollServer(self.session,
-                                         **self.session.method_sync('groups.getLongPollServer'))
-        self.server.bind_listener(self)
         for i in self._on_startup_sync:
             i()
         asyncio.get_event_loop().run_until_complete(asyncio.gather(*(i() for i in self._on_startup_async)))
