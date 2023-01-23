@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "vkpybot"
-version = "0.1.4"
+version = "0.1.6"
 description = ""
 authors = ["Vlatterran"]
 license = "GPL-3.0-or-later"
@@ -13,8 +13,6 @@ aiohttp = "^3.8.3"
 docstring-parser = "^0.15"
 requests = "^2.28.2"
 pydantic = "^1.10.1"
-aiofiles = "^22.1.0"
-httpx = "^0.23.3"
 
 [build-system]
 requires = ["poetry-core"]
