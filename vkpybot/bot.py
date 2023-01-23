@@ -61,7 +61,7 @@ class Bot(EventHandler):
                 self.server = LongPollServer(self.session,
                                              **self.session.method_sync('groups.getLongPollServer'))
             elif server_type == 'ycf':
-                self.server = YandexCloudFunction(session)
+                self.server = YandexCloudFunction(self.session)
             else:
                 raise ValueError('Only longpoll or yvf server_type can be created automatically')
 

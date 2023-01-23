@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "vkpybot"
-version = "0.1.9"
+version = "0.1.11"
 description = ""
 authors = ["Vlatterran"]
 license = "GPL-3.0-or-later"
