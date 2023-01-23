@@ -10,7 +10,7 @@ Easiest hi-bot
     bot = Bot(api_token)
 
     @bot.command('hi')
-    def echo(message):
+    def greet(message):
         return 'Hi'
     
     bot.start()
