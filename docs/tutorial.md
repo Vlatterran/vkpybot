@@ -36,7 +36,7 @@ bot = vk.Bot(access_token=token)
 
 @bot.command
 async def timer(message: vk.Message, minutes: int):
-    await bot.session.reply(message, f'Timer set for {minutes} minutes')
+    await message.reply(f'Timer set for {minutes} minutes')
     await asyncio.sleep(minutes * 60)
     return 'Timer finished'
 ```
