@@ -187,8 +187,8 @@ class Session:
             Session._chats_cache[chat_id] = chat_cls(chat_dict, session=self)
         return Session._chats_cache[chat_id]
 
-    async def execute(self, code: str, func_v: int = 1) -> dict:
-        return await self.method('execute', {'code': code, 'func_v': func_v})
+    def execute(self, code: str, func_v: int = 1):
+        return self.method('execute', {'code': code, 'func_v': func_v})
 
     async def get_by_conversation_message_id(self, chat_id: int,
                                              message_ids: int | list[int],
@@ -218,12 +218,12 @@ return {{"message":messages.items[0],
         pprint(a := await self.execute(code))
         return a
 
-    async def send_message(self,
-                           chat: 'Chat',
-                           text: str = '',
-                           attachments: list = None,
-                           forward_message: dict = None,
-                           sticker: int | None = None):
+    def send_message(self,
+                     chat: 'Chat',
+                     text: str = '',
+                     attachments: list = None,
+                     forward_message: dict = None,
+                     sticker: int | None = None):
         """
             Args:
                 chat: Chat
@@ -261,10 +261,13 @@ return {{"message":messages.items[0],
             params['attachment'] = attachments
         if forward_message is not None:
             params['forward'] = json.dumps(forward_message)
-        return await self.method(method, params)
+        return self.method(method, params)
 
-    async def reply(self, message: 'Message', text: str = '', attachments: list | None = None,
-                    sticker: int | None = None):
+    def reply(self,
+              message: 'Message',
+              text: str = '',
+              attachments: list | None = None,
+              sticker: int | None = None):
         """
 
         Args:
@@ -280,18 +283,18 @@ return {{"message":messages.items[0],
                            'conversation_message_ids': [message.conversation_message_id],
                            'is_reply': 1}
 
-        return await self.send_message(chat=message.chat,
-                                       text=text,
-                                       forward_message=forward_message,
-                                       attachments=attachments,
-                                       sticker=sticker)
+        return self.send_message(chat=message.chat,
+                                 text=text,
+                                 forward_message=forward_message,
+                                 attachments=attachments,
+                                 sticker=sticker)
 
-    async def forward(self,
-                      messages: list['Message'],
-                      chat: 'Chat',
-                      text: str = '',
-                      attachments: list | None = None,
-                      sticker: int | None = None):
+    def forward(self,
+                messages: list['Message'],
+                chat: 'Chat',
+                text: str = '',
+                attachments: list | None = None,
+                sticker: int | None = None):
         """
 
         Args:
@@ -308,11 +311,11 @@ return {{"message":messages.items[0],
                            'conversation_message_ids': [message.conversation_message_id for message in messages],
                            'is_reply': 0}
 
-        return await self.send_message(chat=chat,
-                                       text=text,
-                                       forward_message=forward_message,
-                                       attachments=attachments,
-                                       sticker=sticker)
+        return self.send_message(chat=chat,
+                                 text=text,
+                                 forward_message=forward_message,
+                                 attachments=attachments,
+                                 sticker=sticker)
 
 
 class GroupSession(Session):
@@ -334,6 +337,5 @@ class GroupSession(Session):
     async def get_long_poll_server(self):
         return LongPollServer(self, **await self.get_long_poll_server_row())
 
-    async def get_long_poll_server_row(self):
-        server_config = (await self.method('groups.getLongPollServer'))
-        return server_config
+    def get_long_poll_server_row(self):
+        return self.method('groups.getLongPollServer')
