@@ -1,21 +1,28 @@
 import datetime
 import functools
+import typing
 
-import pydantic
+if typing.TYPE_CHECKING:
+    from sessions import Session
 
 
-class User(pydantic.BaseModel):
+class VKObject:
+    def __init__(self, *, session: 'Session'):
+        self._session = session
+
+
+class User(VKObject):
     """
     Represent user from VK_API
-
-    Attributes:
     """
-    id: int
-    first_name: str
-    last_name: str
-    is_closed: bool
-    can_access_closed: bool
-    deactivated: str | None
+
+    def __init__(self, usr: dict, *, session: 'Session'):
+        super().__init__(session=session)
+        self.id: int = int(usr['id'])
+        self.first_name: str = usr['first_name']
+        self.last_name: str = usr['last_name']
+        self.is_closed: bool = bool(usr['is_closed'])
+        self.can_access_closed: bool = bool(usr['can_access_closed'])
 
     @property
     @functools.lru_cache()
@@ -35,12 +42,13 @@ class User(pydantic.BaseModel):
         return hash(self.id)
 
 
-class Chat:
+class Chat(VKObject):
     """
     Represents chat from VK_API
     """
 
-    def __init__(self, chat_dict):
+    def __init__(self, chat_dict, *, session: 'Session'):
+        super().__init__(session=session)
         self.id = chat_dict['peer']['id']
 
     def __eq__(self, other):
@@ -51,8 +59,8 @@ class Chat:
 
 
 class PrivateChat(Chat):
-    def __init__(self, chat_dict):
-        super(PrivateChat, self).__init__(chat_dict)
+    def __init__(self, chat_dict, *, session: 'Session'):
+        super().__init__(chat_dict, session=session)
 
     def __str__(self):
         return 'ЛС'
@@ -62,8 +70,8 @@ class PrivateChat(Chat):
 
 
 class Conversation(Chat):
-    def __init__(self, chat_dict):
-        super(Conversation, self).__init__(chat_dict)
+    def __init__(self, chat_dict, *, session: 'Session'):
+        super().__init__(chat_dict, session=session)
         self.title = chat_dict['chat_settings']['title']
         self.owner = chat_dict['admins'][0]
         self.admins = chat_dict['admins'][1:]
@@ -76,24 +84,24 @@ class Conversation(Chat):
         return f'<Conversation "{self.title}" (id: {self.id})>'
 
 
-class Message(pydantic.BaseModel):
+class Message(VKObject):
     """
     Representing existing message from VK_API
 
     """
 
-    date: datetime.datetime
-    text: str
-    sender: User
-    chat: Chat
-    conversation_message_id: int
+    def __init__(self, msg: dict, *, session: 'Session'):
+        super().__init__(session=session)
+        self.date: datetime.datetime = datetime.datetime.fromtimestamp(msg['date'])
+        self.text: str = msg['text']
+        self.sender: User = msg['sender']
+        self.chat: Chat = msg['chat']
+        self.conversation_message_id: int = int(msg['conversation_message_id'])
 
-    class Config:
-        arbitrary_types_allowed = True
 
     def __str__(self):
-        in_chat = f" in {self.chat}" if isinstance(self.chat, Conversation) else ""
-        return f'Message from {self.sender}{in_chat}: {self.text}'
+        in_chat = f"{self.chat}" if isinstance(self.chat, Conversation) else ""
+        return f'{self.sender}({in_chat}): {self.text}'
 
     def __repr__(self):
-        return f'<{str(self)}>'
+        return f'<{type(self).__name__} {str(self)}>'

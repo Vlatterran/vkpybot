@@ -43,7 +43,7 @@ class EventServer(ABC):
                 _wait_user = asyncio.create_task(self.vk_session.get_user(message_dict['from_id']))
                 _wait_chat = asyncio.create_task(self.vk_session.get_chat(message_dict['peer_id']))
                 message_dict['sender'], message_dict['chat'] = await asyncio.gather(_wait_user, _wait_chat)
-                context |= {'message': Message(**message_dict),
+                context |= {'message': Message(**message_dict, session=self.vk_session),
                             'client_info': event['object']['client_info']}
         return event_type, context
 

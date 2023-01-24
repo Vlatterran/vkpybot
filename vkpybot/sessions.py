@@ -151,7 +151,7 @@ class Session:
                 Session._get_user_request_task = asyncio.create_task(Session._get_user_request())
                 _users = await Session._get_user_request_task
                 for user in _users:
-                    user = User(**user)
+                    user = User(user, session=self)
                     Session._users_cache[user.id] = user
                 Session._get_user_request_task = None
             else:
@@ -181,9 +181,10 @@ class Session:
                 chat_dict['admins'] = await self.get_users(
                     [*filter(lambda x: x > 0, [chat_dict['chat_settings']['owner_id'],
                                                *chat_dict['chat_settings']['admin_ids']])])
-                Session._chats_cache[chat_id] = Conversation(chat_dict)
+                chat_cls = Conversation
             else:
-                Session._chats_cache[chat_id] = PrivateChat(chat_dict)
+                chat_cls = PrivateChat
+            Session._chats_cache[chat_id] = chat_cls(chat_dict, session=self)
         return Session._chats_cache[chat_id]
 
     async def execute(self, code: str, func_v: int = 1) -> dict:
