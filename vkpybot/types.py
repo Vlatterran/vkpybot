@@ -57,6 +57,20 @@ class Chat(VKObject):
     def __hash__(self):
         return hash(self.id)
 
+    def send(self,
+             text: str = '',
+             attachments: list = None,
+             forward_message: dict = None,
+             sticker: int | None = None):
+        return self._session.send_message(self, text, attachments, forward_message, sticker)
+
+    def forward(self,
+                messages: list['Message'],
+                text: str = '',
+                attachments: list | None = None,
+                sticker: int | None = None):
+        return self._session.forward(messages, self, text, attachments, sticker)
+
 
 class PrivateChat(Chat):
     def __init__(self, chat_dict, *, session: 'Session'):
@@ -98,6 +112,11 @@ class Message(VKObject):
         self.chat: Chat = msg['chat']
         self.conversation_message_id: int = int(msg['conversation_message_id'])
 
+    def reply(self,
+              text: str = '',
+              attachments: list | None = None,
+              sticker: int | None = None):
+        return self._session.reply(self, text, attachments, sticker)
 
     def __str__(self):
         in_chat = f"{self.chat}" if isinstance(self.chat, Conversation) else ""
