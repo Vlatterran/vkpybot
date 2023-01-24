@@ -9,8 +9,6 @@ import urllib.parse
 import httpx
 from bs4 import BeautifulSoup
 
-import vkpybot.utils
-
 MINUTE = 60
 HOUR = MINUTE * 60
 DAY = HOUR * 24
@@ -73,7 +71,7 @@ class Schedule:
             week_day = self.dec_ru[requested_date.tm_wday]
             week_type = 'Числитель' if self.is_week_even(requested_date) else 'Знаменатель'
             requested_schedule: list[dict] = self.schedule[week_day][week_type] + \
-                                             vkpybot.util.get('Еженедельно', [])
+                                             self.schedule[week_day].get('Еженедельно', [])
             result = f'Расписание на {time.strftime("%d.%m.%Y", requested_date)} ' \
                      f'({week_day.lower()}/{week_type.lower()})'
             for i in sorted(requested_schedule, key=lambda line: line['Время занятий']):
