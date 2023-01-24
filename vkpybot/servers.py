@@ -45,6 +45,9 @@ class EventServer(ABC):
                 message_dict['sender'], message_dict['chat'] = await asyncio.gather(_wait_user, _wait_chat)
                 context |= {'message': Message(**message_dict, session=self.vk_session),
                             'client_info': event['object']['client_info']}
+            case EventType.MESSAGE_TYPING_STATE:
+                context['state'] = event['object']['state']
+                context['sender'] = await self.vk_session.get_user(event['object']['from_id'])
         return event_type, context
 
     @abstractmethod
