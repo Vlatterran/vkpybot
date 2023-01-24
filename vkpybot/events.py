@@ -1,6 +1,8 @@
 import enum
+import typing
 
-from vkpybot.types import Message, User
+if typing.TYPE_CHECKING:
+    from vkpybot.types import Message, User
 
 
 class EventHandler:
@@ -47,25 +49,25 @@ class EventHandler:
         if event in self.__event_handler:
             await self.__event_handler[event](**context)
 
-    async def on_message_new(self, message: Message, client_info: dict):
+    async def on_message_new(self, message: 'Message', client_info: dict):
         pass
 
-    async def on_message_edit(self, message: Message):
+    async def on_message_edit(self, message: 'Message'):
         pass
 
-    async def on_message_reply(self, message: Message):
+    async def on_message_reply(self, message: 'Message'):
         pass
 
-    async def on_message_allow(self, user: User, key: str):
+    async def on_message_allow(self, user: 'User', key: str):
         pass
 
-    async def on_message_deny(self, user: User):
+    async def on_message_deny(self, user: 'User'):
         pass
 
-    async def on_message_typing_state(self, state: str, sender: User, receiver):
+    async def on_message_typing_state(self, state: str, sender: 'User'):
         pass
 
-    async def on_message_event(self, user: User, **context):
+    async def on_message_event(self, user: 'User', **context):
         pass
 
     async def on_photo_new(self, photo, **context):
@@ -99,7 +101,7 @@ class EventHandler:
     async def on_video_comment_restore(self, comment, video_id: int, video_owner_id: int, **context):
         pass
 
-    async def on_video_comment_delete(self, owner_id: int, comment_id: int, user: User, deleter: User, **context):
+    async def on_video_comment_delete(self, owner_id: int, comment_id: int, user: 'User', deleter: 'User', **context):
         pass
 
     async def on_wall_post_new(self, **context):
