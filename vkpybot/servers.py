@@ -89,7 +89,6 @@ class YandexCloudFunction(EventServer):
                         'body': os.environ['CODE']
                         }
             else:
-                print(event)
                 await self._notify_listeners(event)
                 return {'statusCode': 200,
                         'body': 'ok'
