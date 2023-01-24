@@ -11,7 +11,7 @@ def main():
         import os
         token = os.environ['token']
         admin = int(os.environ['admin'])
-    bot = vkpybot.Bot(access_token=token, bot_admin_id=admin, log_file='log.log', loglevel=20)
+    bot = vkpybot.Bot(access_token=token, bot_admin_id=admin, loglevel=20)
 
     @bot.on_startup
     async def init_schedule():
@@ -36,11 +36,11 @@ def main():
     def week(week_type: str = ''):
         return schedule.week_lectures(week_type)
 
-    @bot.command(access_level=vkpybot.AccessLevel.BOT_ADMIN)
+    @bot.command(access_level=vkpybot.bot.AccessLevel.BOT_ADMIN)
     def cache():
         return bot.session.cache
 
-    @bot.command(access_level=vkpybot.AccessLevel.BOT_ADMIN)
+    @bot.command(access_level=vkpybot.bot.AccessLevel.BOT_ADMIN)
     async def logs(message: vkpybot.Message):
         await bot.session.reply(message, attachments=[await bot.session.upload_document('logs\\log.log', message.chat)])
 
