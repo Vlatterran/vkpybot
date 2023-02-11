@@ -7,7 +7,7 @@ import re
 import shlex
 from argparse import ArgumentParser
 from functools import update_wrapper
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Any
 
 import docstring_parser
 
@@ -15,6 +15,7 @@ from vkpybot.events import EventHandler, EventType
 from vkpybot.servers import EventServer, LongPollServer, YandexCloudFunction
 from vkpybot.sessions import GroupSession
 from vkpybot.types import PrivateChat, Message
+from vkpybot.utils import StoreDict
 
 
 class AccessLevel(enum.IntEnum):
@@ -224,12 +225,14 @@ class Command:
             if param.annotation is param.empty:
                 annotation = str
                 # {"-" if parameter.default is not parameter.empty else ""}
-            kwargs = {}
+            kwargs = {'type': annotation, 'nargs': '?'}
             if param.default is not param.empty:
                 kwargs |= {'default': str(param.default)}
+            if isinstance(annotation(), dict):
+                kwargs['action'] = StoreDict
+                kwargs['nargs'] = '+'
+                del kwargs['type']
             arg = parser.add_argument(f'{name}',
-                                      type=annotation,
-                                      nargs='?',
                                       **kwargs
                                       )
             # print(arg)
@@ -294,7 +297,8 @@ class Command:
             str: 'строка',
             int: 'целое число',
             float: 'действительное число',
-            inspect.Parameter.empty: 'строка'
+            inspect.Parameter.empty: 'строка',
+            dict[str, Any]: 'набор параметров через равно',
         }
         if use_doc and self.__doc__ is not None:
             documentation = docstring_parser.parse(self.__doc__)
