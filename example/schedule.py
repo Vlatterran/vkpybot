@@ -1,7 +1,13 @@
 import asyncio
 import datetime
+import json
+import logging
 import re
 import time
+import urllib.parse
+
+import httpx
+from bs4 import BeautifulSoup
 
 MINUTE = 60
 HOUR = MINUTE * 60
@@ -9,204 +15,176 @@ DAY = HOUR * 24
 
 
 class Schedule:
-    schedule = {
-        'понедельник': {
-            'числитель': {
-                'Информационная безопасность и защита информации на транспорте': {
-                    'начало': '18:50',
-                    'конец': '22:00',
-                    'вид занятия': 'Лабораторные занятия'},
-            },
-            'знаменатель': {
-                'Системы электронного документооборота в отраслях транспортно-дорожного комплекса': {
-                    'начало': '18:50',
-                    'конец': '22:00',
-                    'вид занятия': 'Лабораторные занятия'},
-            }
-        },
-        'вторник': {
-            'числитель': {
-                'Трудовое и предпринимательское право': {
-                    'начало': '18:50',
-                    'конец': '20:20',
-                    'вид занятия': 'Лекции'},
-                'Системы электронного документооборота в отраслях транспортно-дорожного комплекса': {
-                    'начало': '22:30',
-                    'конец': '20:20',
-                    'вид занятия': 'Лекции'}
-            },
-            'знаменатель': {
-                'Трудовое и предпринимательское право': {
-                    'начало': '18:50',
-                    'конец': '22:00',
-                    'вид занятия': 'практика'},
-            }
-        },
-        'среда': {
-            'числитель': {
-                'Физическая культура': {
-                    'начало': '18:50',
-                    'конец': '20:20',
-                    'вид занятия': 'лекция'},
-            },
-            'знаменатель': {
-                'Физическая культура': {
-                    'начало': '18:50',
-                    'конец': '20:20',
-                    'вид занятия': 'лекция'},
-            }
-        },
-        'четверг': {
-            'числитель': {
-                'Философия': {
-                    'начало': '18:50',
-                    'конец': '20:20',
-                    'вид занятия': 'лекция'},
-                'Дискретная математика': {
-                    'начало': '20:20',
-                    'конец': '22:00',
-                    'вид занятия': 'практика'}
-            },
-            'знаменатель': {
-                'Философия': {
-                    'начало': '18:50',
-                    'конец': '20:20',
-                    'вид занятия': 'семинар'},
-                'Дискретная математика': {
-                    'начало': '20:20',
-                    'конец': '22:00',
-                    'вид занятия': 'практика'}
-            }
-        },
-        'пятница': {
-            'числитель': {
-                'Интеграллы и диффиеренциальные уравнения ': {
-                    'начало': '18:50',
-                    'конец': '20:20',
-                    'вид занятия': 'лекция'},
-                'Иностраннный язык': {
-                    'начало': '20:30',
-                    'конец': '22:00',
-                    'вид занятия': 'практика'}
-            },
-            'знаменатель': {
-                'Технологии программирования': {
-                    'начало': '18:50',
-                    'конец': '20:20',
-                    'вид занятия': 'лекция'},
-                'Иностраннный язык': {
-                    'начало': '20:30',
-                    'конец': '22:00',
-                    'вид занятия': 'практика'}
-            }
-        }
-    }
+    def __init__(self, onedrive_url):
+        self.onedrive_url = onedrive_url
+        self.schedule = {}
+
+    async def init(self):
+        self.schedule = await self.get_schedule(self.onedrive_url)
 
     dec_ru = {
-        0: 'понедельник',
-        1: 'вторник',
-        2: 'среда',
-        3: 'четверг',
-        4: 'пятница',
+        0: 'Понедельник',
+        1: 'Вторник',
+        2: 'Среда',
+        3: 'Четверг',
+        4: 'Пятница',
+        5: 'Суббота',
+        6: 'Воскресенье'
     }
     ru_dec = {
-        'понедельник': 0,
-        'вторник': 1,
-        'среда': 2,
-        'четверг': 3,
-        'пятница': 4,
+        'Понедельник': 0,
+        'Вторник': 1,
+        'Среда': 2,
+        'Четверг': 3,
+        'Пятница': 4,
+        'Суббота': 5,
+        'Воскресенье': 6
+    }
+    shortens = {
+        'Числ': 'Числитель',
+        'Знам': 'Знаменатель',
+        'Еж': 'Еженедельно',
     }
 
+    @staticmethod
+    def line_template(i):
+        return f"\n{'=' * 40}\n{i['Время занятий']}: {i['Наименование дисциплины']}" \
+               f"\n{i['Преподаватель']} | {i['Аудитория']} | {i['Вид занятий']}" \
+               f" {('|' + i['Частота']) if 'Частота' in i else ''}"
+
+    def lectures(self, day: str):
+        date_regex = r'(\b(0?[1-9]|[1-2][0-9]|3[0-1])[\.\\]([1][0-2]|0?[1-9])\b)'
+        if re.match(date_regex, day):
+            date = [*map(int, re.split(r'[.\\-]', day))]
+            requested_date = datetime.datetime(day=date[0], month=date[1], year=time.localtime().tm_year)
+        else:
+            requested_date = datetime.datetime.now()
+            d = day.title()
+            if d == '':
+                pass
+            if d == 'Завтра':
+                requested_date += datetime.timedelta(days=1)
+            elif d in self.ru_dec:
+                requested_date += datetime.timedelta(days=(self.ru_dec[d] - requested_date.weekday()) % 7)
+        try:
+            requested_date = requested_date.timetuple()
+            week_day = self.dec_ru[requested_date.tm_wday]
+            week_type = 'Числитель' if self.is_week_even(requested_date) else 'Знаменатель'
+            requested_schedule: list[dict] = self.schedule[week_day][week_type] + \
+                                             self.schedule[week_day].get('Еженедельно', [])
+            result = f'Расписание на {time.strftime("%d.%m.%Y", requested_date)} ' \
+                     f'({week_day.lower()}/{week_type.lower()})'
+            for i in sorted(requested_schedule, key=lambda line: line['Время занятий']):
+                result += self.line_template(i)
+            return result
+        except KeyError as e:
+            print(e)
+            return 'Не удалось найти расписание на указанный день'
+
+    @staticmethod
+    def is_week_even(day: time.struct_time):
+        return ((day.tm_yday + datetime.datetime(day=1, month=1, year=2022).weekday()) // 7) % 2 == 1
+
     @classmethod
-    def show(cls, days: list):
-        if days is None or len(days) == 0:
-            days = ['']
-        for day in days:
-            date_regex = r'(\b(0?[1-9]|[1-2][0-9]|3[0-1])[\.\\]([1][0-2]|0?[1-9])\b)'
-            if re.match(date_regex, day):
-                date = [*map(int, re.split(r'[.\\-]', day))]
-                times = datetime.datetime(day=date[0], month=date[1], year=time.localtime().tm_year).timetuple()
-                day = ''
-            else:
-                times = time.localtime()
-            is_even = 'числитель' if (times.tm_yday - 32) // 7 % 2 == 0 else 'знаменатель'
-            if day in ('сегодня', '') and 0 <= times.tm_wday < 5:
-                day = cls.dec_ru[times.tm_wday]
-                result = f'Расписание на {times.tm_mday}/{times.tm_mon}/{times.tm_year} ' \
-                         f'({day}/{is_even}):'
-            elif day == 'завтра' and (times.tm_wday == 6 or times.tm_wday < 4):
-                if times.tm_wday == 6:
-                    is_even = 'числитель' if is_even == 'знаменатель' else 'знаменатель'
-                    day = 'понедельник'
-                else:
-                    day = cls.dec_ru[times.tm_wday + 1]
-                result = f'Расписание на {times.tm_mday + 1}/{times.tm_mon}/{times.tm_year} ({day}/{is_even}):'
-            elif day in ('понедельник', 'вторник', 'среда', 'четверг', 'пятница'):
-                if cls.ru_dec[day] < times.tm_wday:
-                    week = 'следующей'
-                    is_even = 'числитель' if is_even == 'знаменатель' else 'знаменатель'
-                else:
-                    week = 'этой'
-                result = f'Расписание на {day if day[-1] != "а" else day[:len(day) - 1] + "у"} {week} недели:'
-            else:
-                result = 'Не удалось найти расписание на указаный день'
-            if result != 'Не удалось найти расписание на указаный день':
-                day_sch = cls.schedule[day][is_even]
-                for i in day_sch:
-                    result += f"\n{day_sch[i]['начало']} - {day_sch[i]['конец']}: {i} ({day_sch[i]['вид занятия']})"
-            yield result
-
-    async def time_to_next_lecture(self):
-        while True:
-            times = time.localtime()
-            if times.tm_wday == 6:
-                print(f'waiting {DAY / 2}')
-                await asyncio.sleep(DAY / 2)
-            elif times.tm_wday == 5:
-                await asyncio.sleep(DAY)
-            elif times.tm_wday <= 4:
-                day = self.dec_ru[times.tm_wday]
-                now = times.tm_hour * HOUR + times.tm_min * MINUTE
-                is_even = 'числитель' if (times.tm_yday - 32) // 7 % 2 == 0 else 'знаменатель'
-                day_sch = self.schedule[day][is_even]
-                for i in day_sch:
-                    next_str = day_sch[i]['начало']
-                    next_time = int(next_str[:2]) * HOUR + int(next_str[3:]) * MINUTE
-                    if next_time > now:
-                        delay = next_time - now
-                        print(delay)
-                        if delay <= 10 * MINUTE:
-                            timer = int(delay / MINUTE)
-                            yield f"{i} через {timer}"
-                            await asyncio.sleep(delay + MINUTE)
+    async def parse(cls, group: str):
+        async with httpx.AsyncClient() as client:
+            response = await client.post('https://www.madi.ru/tplan/tasks/task3,7_fastview.php',
+                                         data={'step_no': 1, 'task_id': 7})
+            logging.info(response)
+            soup = BeautifulSoup(response.text,
+                                 features='lxml')
+            _groups = dict(map(lambda x: (x.attrs['value'], x.text),
+                               soup.select('ul>li')))
+            weekday = None
+            schedule = {}
+            for group_id, group_name in filter(lambda kv: kv[1].lower() == group.lower(), _groups.items()):
+                response = await client.post('https://www.madi.ru/tplan/tasks/tableFiller.php',
+                                             data={'tab': 7, 'gp_name': group_name, 'gp_id': group_id})
+                logging.info(response.text)
+                soup = BeautifulSoup(response.text, features='lxml')
+                raws = iter(soup.select('.timetable tr'))
+                for raw in raws:
+                    children = [*raw.findChildren(('td', 'th'))]
+                    logging.info(children)
+                    if sum(1 for _ in children) == 1:
+                        try:
+                            weekday = raw.text
+                        except KeyError:
                             break
-                        else:
-                            await asyncio.sleep(delay / 2)
+                        next(raws)
+                    else:
+                        context = {'weekday': weekday, 'group': group_name}
+                        line = {}
+                        for i, cell in enumerate(children):
+                            logging.debug(i, cell)
+                            match i:
+                                case 0:
+                                    line['Время занятий'] = cell.text
+                                case 1:
+                                    line['Наименование дисциплины'] = cell.text
+                                case 2:
+                                    line['Вид занятий'] = cell.text
+                                case 3:
+                                    context['frequency'] = cell.text
+                                case 4:
+                                    line['Аудитория'] = cell.text
+                                case 5:
+                                    if cell.text == '':
+                                        t = '--'
+                                    else:
+                                        t = cell.text
+                                    line['Преподаватель'] = re.sub(r'\s{2,}', ' ', t)
+                        try:
+                            day = schedule.setdefault(context['weekday'], {})
+                            logging.info(context)
+                            if '.' in context['frequency']:
+                                f = context['frequency'].split('.')
+                                context['frequency'] = cls.shortens[f[0]]
+                                line['Частота'] = f[1]
+
+                            day.setdefault(context['frequency'], []).append(line)
+                        except KeyError:
+                            if context['weekday'] != '\nПолнодневные занятия\n':
+                                raise
+                        except Exception as e:
+                            print(type(e), e, f'\n{context}')
+                            logging.exception(e)
                             break
-                else:
-                    await asyncio.sleep(DAY / 2)
+        return schedule
 
+    def week_lectures(self, week_type: str):
+        if week_type == '':
+            f = 'Числитель' if self.is_week_even(datetime.date.today().timetuple()) else 'Знаменатель'
+        else:
+            f = week_type.title()
+        result = f'Расписание на {f}'
+        for day in self.ru_dec:
+            try:
+                requested_schedule = self.schedule[day][f]
+                result += f'\n{day}'
+                for i in requested_schedule:
+                    result += self.line_template(i=i)
+            except KeyError:
+                pass
+        return result
 
-async def test():
-    a = 1
-    while True:
-        yield a
-        a += 1
-        await asyncio.sleep(2)
+    async def update(self):
+        self.schedule = await self.get_schedule(self.onedrive_url)
 
-
-async def test2():
-    a = 1
-    while True:
-        yield a
-        a += 1
-        await asyncio.sleep(2)
-
-
-async def main():
-    async for text in test():
-        print(text)
+    @staticmethod
+    async def get_schedule(onedrive_url):
+        async with httpx.AsyncClient() as client:
+            location_response = client.get(onedrive_url)
+            location_url = (await location_response).headers['location']
+            location = await client.get(location_url)
+            query = urllib.parse.parse_qs(location.url.query)
+            schedule_url = f'https://api.onedrive.com/drives/{(query[b"resid"][0].split(b"!")[0].decode())}' \
+                           f'/items/{query[b"resid"][0].decode()}/content'
+            return (await client.get(schedule_url, params={'authkey': query[b'authkey'][0].decode()},
+                                     follow_redirects=True)).json()
 
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    a = asyncio.run(Schedule.parse('3ВбИТС'))
+    with open('schedule.json', 'w', encoding='utf8') as file:
+        json.dump(a, file, indent=4, ensure_ascii=False)

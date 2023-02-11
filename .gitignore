@@ -1,6 +1,8 @@
 /venv
 example/config.py
+example/schedule.json
 /ignore
 /.idea
 /example/logs
-**/__pycache__
+**/__pycache__\
+/dist

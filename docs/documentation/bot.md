@@ -1,21 +1,4 @@
-VK is library that allows to create chatbots for vk easy and fast
-
-# Quickstart
-
-Easiest hi-bot
-
-    from VK import Bot
-
-
-    bot = Bot(api_token)
-
-    @bot.command('hi')
-    def echo(message):
-        return 'Hi'
-    
-    bot.start()
-
-# Documentation
+# Bot
 
 `Bot` - main class
 
@@ -25,7 +8,7 @@ Easiest hi-bot
 - `bot_admin` - id of user, that will gain maximum access for bot`s commands
 - `session` - `GroupSession` object to access api (will be created automatically if not passed)
 - `event_server` - `CallBackServer` or `LongPollServer` that will pass events to bot (LongPollServer will bew created
-  automaticly)
+  automatically)
 - `log_file` - name of log_file (will bew created at /log directory)
 - `log_level`
 
@@ -57,18 +40,13 @@ You can add `message` argument to the command-function to gain access to the mes
     def hi(message):
         return f'Hi, {message.sender}!'
 
-Also, you can reply to the message manually
-
-    bot.command()
-    async def hi(message):
-        await message.reply('Hi, {message.sender}!')
 
 > Framework will automatically use the returned string as text of message to reply and ignore all other returned objects (including None)
-
 
 ## AccessLevel
 
 There are 3 access levels now
+
 1. USER - every user in conversations
 2. ADMIN - admins of conversation and any user in private chat with bot
 3. BOT_ADMIN - user, that was declared as `bot_admin`
