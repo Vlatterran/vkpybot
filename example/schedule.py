@@ -88,8 +88,10 @@ class Schedule:
     @classmethod
     async def parse(cls, group: str):
         async with httpx.AsyncClient() as client:
-            soup = BeautifulSoup((await client.post('https://www.madi.ru/tplan/tasks/task3,7_fastview.php',
-                                                    data={'step_no': 1, 'task_id': 7})).text,
+            response = await client.post('https://www.madi.ru/tplan/tasks/task3,7_fastview.php',
+                                         data={'step_no': 1, 'task_id': 7})
+            logging.info(response)
+            soup = BeautifulSoup(response.text,
                                  features='lxml')
             _groups = dict(map(lambda x: (x.attrs['value'], x.text),
                                soup.select('ul>li')))
@@ -98,10 +100,12 @@ class Schedule:
             for group_id, group_name in filter(lambda kv: kv[1].lower() == group.lower(), _groups.items()):
                 response = await client.post('https://www.madi.ru/tplan/tasks/tableFiller.php',
                                              data={'tab': 7, 'gp_name': group_name, 'gp_id': group_id})
+                logging.info(response.text)
                 soup = BeautifulSoup(response.text, features='lxml')
                 raws = iter(soup.select('.timetable tr'))
                 for raw in raws:
                     children = [*raw.findChildren(('td', 'th'))]
+                    logging.info(children)
                     if sum(1 for _ in children) == 1:
                         try:
                             weekday = raw.text
@@ -112,6 +116,7 @@ class Schedule:
                         context = {'weekday': weekday, 'group': group_name}
                         line = {}
                         for i, cell in enumerate(children):
+                            logging.debug(i, cell)
                             match i:
                                 case 0:
                                     line['Время занятий'] = cell.text
@@ -120,10 +125,7 @@ class Schedule:
                                 case 2:
                                     line['Вид занятий'] = cell.text
                                 case 3:
-                                    try:
-                                        context['frequency'] = cell.text
-                                    except KeyError:
-                                        break
+                                    context['frequency'] = cell.text
                                 case 4:
                                     line['Аудитория'] = cell.text
                                 case 5:
@@ -134,13 +136,16 @@ class Schedule:
                                     line['Преподаватель'] = re.sub(r'\s{2,}', ' ', t)
                         try:
                             day = schedule.setdefault(context['weekday'], {})
-
+                            logging.info(context)
                             if '.' in context['frequency']:
                                 f = context['frequency'].split('.')
                                 context['frequency'] = cls.shortens[f[0]]
                                 line['Частота'] = f[1]
 
                             day.setdefault(context['frequency'], []).append(line)
+                        except KeyError:
+                            if context['weekday'] != '\nПолнодневные занятия\n':
+                                raise
                         except Exception as e:
                             print(type(e), e, f'\n{context}')
                             logging.exception(e)
