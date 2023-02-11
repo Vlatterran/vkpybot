@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "vkpybot"
-version = "0.1.13"
+version = "0.1.14"
 description = "Asyncronus library to build VK bot"
 authors = ["Vlatterran"]
 license = "GPL-3.0-or-later"
@@ -8,7 +8,7 @@ readme = "README.md"
 packages = [ {include = "vkpybot"} ]
 documentation = "https://vlatterran.github.io/vkpybot/"
 repository = "https://github.com/Vlatterran/vkpybot/"
-keywords = ["VK", "vk", "bot"]
+keywords = ["VK", "vk", "bot", "async"]
 
 [tool.poetry.urls]
 "Bug Tracker" = "https://github.com/Vlatterran/vkpybot/issues"

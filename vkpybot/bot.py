@@ -298,7 +298,7 @@ class Command:
             int: 'целое число',
             float: 'действительное число',
             inspect.Parameter.empty: 'строка',
-            dict[str, Any]: 'набор параметров через равно',
+            dict: 'набор параметров через равно',
         }
         if use_doc and self.__doc__ is not None:
             documentation = docstring_parser.parse(self.__doc__)
@@ -315,7 +315,7 @@ class Command:
                 if name == 'message':
                     continue
                 # print(param.annotation)
-                res += f'{name} - {annotations[param.annotation]}'
+                res += f'{name} - {annotations[type(param.annotation())]}'
                 if param.default is not param.empty:
                     res += f' (значение по умолчанию: {param.default!r})'
                 if documentation:
