@@ -21,6 +21,7 @@ def test_api_method():
 @pytest.fixture(scope='module')
 def mock():
     with requests_mock.Mocker() as m:
+        m.get(api_method('groups.getById'), json={'response': [{'id': 123456789, 'name': 'test'}]})
         yield m
 
 
@@ -60,7 +61,6 @@ def aio_mock():
 
 @pytest.fixture(scope='module')
 def bot(mock) -> vkpybot.Bot:
-    mock.get(api_method('groups.getById'), json={'response': [{'id': 123456789, 'name': 'test'}]})
     return vkpybot.Bot(access_token='token', server_type='ycf')
 
 
@@ -95,5 +95,3 @@ async def test_handle(bot: vkpybot.Bot, aio_mock):
         }
     }
     await bot.server.handler({'body': json.dumps(message_event)}, {})
-    aio_mock.requests.get()
-
