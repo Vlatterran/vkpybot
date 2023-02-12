@@ -3,10 +3,11 @@ name: Pytest tests
 on: [push]
 
 jobs:
-  defaults:
-    run:
-      shell: bash
   tests:
+
+    defaults:
+      run:
+        shell: bash
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
