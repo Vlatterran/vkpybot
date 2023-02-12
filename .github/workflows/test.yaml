@@ -19,7 +19,7 @@ jobs:
         uses: snok/install-poetry@v1
       - name: Install dependencies
         run: | 
-          poetry install
+          poetry install --with dev
           python -m pip install .
       - name: Test with pytest ${{ matrix.runs-on }}
         run: python -m pytest
