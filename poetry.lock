@@ -4,7 +4,7 @@
 name = "aioboto3"
 version = "10.4.0"
 description = "Async boto3 wrapper"
-category = "main"
+category = "dev"
 optional = false
 python-versions = ">=3.7,<4.0"
 files = [
@@ -23,7 +23,7 @@ s3cse = ["cryptography (>=2.3.1)"]
 name = "aiobotocore"
 version = "2.4.2"
 description = "Async client for aws services using botocore and aiohttp"
-category = "main"
+category = "dev"
 optional = false
 python-versions = ">=3.7"
 files = [
@@ -155,7 +155,7 @@ speedups = ["Brotli", "aiodns", "cchardet"]
 name = "aioitertools"
 version = "0.11.0"
 description = "itertools and builtins for AsyncIO and mixed iterables"
-category = "main"
+category = "dev"
 optional = false
 python-versions = ">=3.6"
 files = [
@@ -228,7 +228,7 @@ tests-no-zope = ["cloudpickle", "cloudpickle", "hypothesis", "hypothesis", "mypy
 name = "boto3"
 version = "1.24.59"
 description = "The AWS SDK for Python"
-category = "main"
+category = "dev"
 optional = false
 python-versions = ">= 3.7"
 files = [
@@ -248,7 +248,7 @@ crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
 name = "botocore"
 version = "1.27.59"
 description = "Low-level, data-driven core of boto 3."
-category = "main"
+category = "dev"
 optional = false
 python-versions = ">= 3.7"
 files = [
@@ -513,7 +513,7 @@ files = [
 name = "jmespath"
 version = "1.0.1"
 description = "JSON Matching Expressions"
-category = "main"
+category = "dev"
 optional = false
 python-versions = ">=3.7"
 files = [
@@ -742,7 +742,7 @@ pytest = ">=3.6.0"
 name = "python-dateutil"
 version = "2.8.2"
 description = "Extensions to the standard Python datetime module"
-category = "main"
+category = "dev"
 optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,>=2.7"
 files = [
@@ -815,7 +815,7 @@ test = ["fixtures", "mock", "purl", "pytest", "requests-futures", "sphinx", "tes
 name = "s3transfer"
 version = "0.6.0"
 description = "An Amazon S3 Transfer Manager"
-category = "main"
+category = "dev"
 optional = false
 python-versions = ">= 3.7"
 files = [
@@ -833,7 +833,7 @@ crt = ["botocore[crt] (>=1.20.29,<2.0a.0)"]
 name = "six"
 version = "1.16.0"
 description = "Python 2 and 3 compatibility utilities"
-category = "main"
+category = "dev"
 optional = false
 python-versions = ">=2.7, !=3.0.*, !=3.1.*, !=3.2.*"
 files = [
@@ -923,7 +923,7 @@ test = ["covdefaults (>=2.2.2)", "coverage (>=7.1)", "coverage-enable-subprocess
 name = "wrapt"
 version = "1.14.1"
 description = "Module for decorators, wrappers and monkey patching."
-category = "main"
+category = "dev"
 optional = false
 python-versions = "!=3.0.*,!=3.1.*,!=3.2.*,!=3.3.*,!=3.4.*,>=2.7"
 files = [
@@ -1084,4 +1084,4 @@ multidict = ">=4.0"
 [metadata]
 lock-version = "2.0"
 python-versions = "^3.10"
-content-hash = "6ee07412d22aff44b39e352e44ebcda57b0931a242834dda9bd8f719361bb694"
+content-hash = "d496796d10f766faa7e422386441a17794c51f53bc1ab789ffe9ef8d8f456460"
