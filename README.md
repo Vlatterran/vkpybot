@@ -1,5 +1,10 @@
 VK is library that allows to create chatbots for vk easy and fast
 
+![PyPI](https://github.com/Vlatterran/vkpybot/actions/workflows/publish.yaml/badge.svg)
+![docs](https://github.com/Vlatterran/vkpybot/actions/workflows/ci.yaml/badge.svg)
+![version](https://img.shields.io/pypi/v/vkpybot.svg)
+![py_version](https://img.shields.io/pypi/pyversions/vkpybot.svg)
+
 # Quickstart
 
 Easiest hi-bot

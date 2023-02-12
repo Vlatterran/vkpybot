@@ -353,17 +353,16 @@ class CommandHandler:
         return iter(self.commands)
 
     async def handle_command(self, message: Message):
-        temp = message.text[1:].split()
-        _command = temp[0]
+        command_name = message.text[1:].split()[0]
         try:
-            command = self[_command]
+            command = self[command_name]
         except KeyError:
-            return f'There is no command {_command}'
+            return f'There is no command {command_name}'
         try:
             return await command(message)
         except Exception as e:
             logging.exception(e)
-            return f'An exception has occurred in "{_command}" execution'
+            return f'An exception has occurred in "{command_name}" execution'
 
 
 class Regex:
