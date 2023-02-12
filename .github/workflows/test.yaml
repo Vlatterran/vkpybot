@@ -20,6 +20,7 @@ jobs:
       - name: Install dependencies
         run: | 
           poetry install --with dev
+          python -m pip install pytest
           python -m pip install .
       - name: Test with pytest ${{ matrix.runs-on }}
         run:  pytest
