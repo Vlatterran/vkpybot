@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "vkpybot"
-version = "0.1.14"
+version = "0.2.0"
 description = "Asyncronus library to build VK bot"
 authors = ["Vlatterran"]
 license = "GPL-3.0-or-later"
