@@ -6,15 +6,34 @@ theme:
   features:
     - content.code.annotate
     - content.code.copy
+    - navigation.tracking
+    - navigation.footer
 
 repo_url: https://github.com/Vlatterran/vkpybot
 plugins:
   - search:
-      lang: en
+      lang:
+        - en
+        - ru
+  - i18n:
+      docs_structure: folder
+      default_language: en
+      languages:
+        en: English
+        ru: Russian
 
 markdown_extensions:
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
   - pymdownx.snippets
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/vlatterran/vkpybot

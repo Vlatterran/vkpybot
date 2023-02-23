@@ -16,7 +16,7 @@ You can specify custom name for command by providing `name (str)` parameter to d
 To add more than one name for command, provide `names (list[str])` parameter
 
 > Note: using `names` doesn't rewriting default name, so if you don't want to use function's name as command's name, you
-**must** provide name
+**must** provide `name`
 
 ```python
 # command with default name
@@ -38,7 +38,7 @@ def stop():
 
 
 # command with default custom and aliases
-@bot.command(name='break', names=['end', 'break'])
+@bot.command(name='break', names=['end'])
 def stop():
     return 'Ending'
 ```
