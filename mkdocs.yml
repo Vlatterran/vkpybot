@@ -26,10 +26,10 @@ plugins:
         - ru
   - i18n:
       docs_structure: folder
-      default_language: en
+      default_language: ru
       languages:
         en: English
-        ru: Russian
+        ru: Русский
 
 markdown_extensions:
   - pymdownx.highlight:
