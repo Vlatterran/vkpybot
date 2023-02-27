@@ -8,6 +8,15 @@ theme:
     - content.code.copy
     - navigation.tracking
     - navigation.footer
+  palette:
+    - scheme: slate
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+    - scheme: default
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
 
 repo_url: https://github.com/Vlatterran/vkpybot
 plugins:
