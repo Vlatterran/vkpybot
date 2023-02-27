@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:xhtml="http://www.w3.org/1999/xhtml">
+    <url>
+         <loc>None.</loc>
+         <lastmod>2023-02-27</lastmod>
+         <changefreq>daily</changefreq>
+         <xhtml:link rel="alternate" hreflang="en" href="Noneen/"/>
+         <xhtml:link rel="alternate" hreflang="ru" href="Noneru/"/>
+         
+    </url>
+    <url>
+         <loc>Nonetutorial/</loc>
+         <lastmod>2023-02-27</lastmod>
+         <changefreq>daily</changefreq>
+         <xhtml:link rel="alternate" hreflang="en" href="Noneen/tutorial/"/>
+         <xhtml:link rel="alternate" hreflang="ru" href="Noneru/tutorial/"/>
+         
+    </url>
+    <url>
+         <loc>Nonedocumentation/bot/</loc>
+         <lastmod>2023-02-27</lastmod>
+         <changefreq>daily</changefreq>
+         <xhtml:link rel="alternate" hreflang="en" href="Noneen/documentation/bot/"/>
+         <xhtml:link rel="alternate" hreflang="ru" href="Noneru/documentation/bot/"/>
+         
+    </url>
+    <url>
+         <loc>Nonedocumentation/command/</loc>
+         <lastmod>2023-02-27</lastmod>
+         <changefreq>daily</changefreq>
+         <xhtml:link rel="alternate" hreflang="en" href="Noneen/documentation/command/"/>
+         <xhtml:link rel="alternate" hreflang="ru" href="Noneru/documentation/command/"/>
+         
+    </url>
+    <url>
+         <loc>Nonedocumentation/message/</loc>
+         <lastmod>2023-02-27</lastmod>
+         <changefreq>daily</changefreq>
+         <xhtml:link rel="alternate" hreflang="en" href="Noneen/documentation/message/"/>
+         <xhtml:link rel="alternate" hreflang="ru" href="Noneru/documentation/message/"/>
+         
+    </url>
+</urlset>
