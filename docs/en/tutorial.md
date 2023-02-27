@@ -4,9 +4,17 @@ Short tutorial to create and run simple bot
 
 ## Installation
 
-```shell
-pip install vkpybot
-```
+=== "pip"
+
+    ```shell
+    pip install vkpybot
+    ```
+
+=== "Poetry"
+
+    ```shell
+    poetry add vkpybot
+    ```
 
 ## Importing
 
