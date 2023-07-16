@@ -12,7 +12,7 @@ class EventHandler:
     """
 
     def __init__(self):
-        self.__event_handler = {
+        self._event_handler = {
             EventType.MESSAGE_NEW: self.on_message_new,
             EventType.MESSAGE_EDIT: self.on_message_edit,
             EventType.MESSAGE_REPLY: self.on_message_reply,
@@ -46,8 +46,8 @@ class EventHandler:
         }
 
     async def __call__(self, event: 'EventType', **context: dict):
-        if event in self.__event_handler:
-            await self.__event_handler[event](**context)
+        if event in self._event_handler:
+            await self._event_handler[event](**context)
 
     async def on_message_new(self, message: 'Message', client_info: dict):
         pass

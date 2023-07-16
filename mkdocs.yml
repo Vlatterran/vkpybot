@@ -30,6 +30,18 @@ plugins:
       languages:
         en: English
         ru: Русский
+  - mkdocstrings:
+      handlers:
+
+        python:
+          options:
+            show_source: false
+#  - gen-files:
+#      scripts:
+#        - docs/ru/gen_ref_pages.py
+  - literate-nav:
+      nav_file: SUMMARY.md
+  - section-index
 
 markdown_extensions:
   - pymdownx.highlight:

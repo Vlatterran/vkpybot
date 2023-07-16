@@ -7,14 +7,14 @@ import re
 import shlex
 from argparse import ArgumentParser
 from functools import update_wrapper
-from typing import Awaitable, Callable, Any
+from typing import Awaitable, Callable, Optional, Any
 
 import docstring_parser
 
 from vkpybot.events import EventHandler, EventType
-from vkpybot.servers import EventServer, LongPollServer, YandexCloudFunction
-from vkpybot.sessions import GroupSession
-from vkpybot.types import PrivateChat, Message
+from vkpybot.server import EventServer, LongPollServer, YandexCloudFunction
+from vkpybot.session import GroupSession
+from vkpybot.types import Message, Conversation
 from vkpybot.utils import StoreDict
 
 
@@ -34,13 +34,13 @@ class Bot(EventHandler):
 
     def __init__(self, access_token: str,
                  bot_admin_id: int = 0,
-                 session: 'GroupSession' = None,
-                 event_server: 'EventServer' = None,
+                 session: Optional['GroupSession'] = None,
+                 event_server: Optional['EventServer'] = None,
                  log_file=None,
                  loglevel=logging.INFO,
                  stdout_log=True,
-                 command_prefix='/',
-                 server_type='longpoll'):
+                 command_prefix: str = '/',
+                 server_type: str = 'longpoll'):
         """
         Args:
             access_token: API_TOKEN for group
@@ -51,24 +51,25 @@ class Bot(EventHandler):
             loglevel:
         """
         super().__init__()
-        self._on_startup_async = []
-        self._on_startup_sync = []
+        self._on_startup_async: list[Callable[[None], Awaitable[None]]] = []
+        self._on_startup_sync: list[Callable[[None], None]] = []
+        self.session: GroupSession
         if session is None:
             self.session = GroupSession(access_token=access_token)
         else:
             self.session = session
+        self.server: EventServer
         if event_server is None:
             if server_type == 'longpoll':
-                self.server: EventServer = LongPollServer(self.session,
-                                                          **self.session.method_sync('groups.getLongPollServer'))
+                self.server = LongPollServer(self.session,
+                                             **self.session._connection.method_sync('groups.getLongPollServer'))
             elif server_type == 'ycf':
-                self.server: EventServer = YandexCloudFunction(self.session)
+                self.server = YandexCloudFunction(self.session)
             else:
                 raise ValueError('Only longpoll or yvf server_type can be created automatically')
-
         self.server.bind_listener(self)
 
-        self.command_prefix = command_prefix
+        self.command_prefix: str = command_prefix
         self.bot_admin: int = bot_admin_id
         self.commands: CommandHandler = CommandHandler(bot_admin=bot_admin_id)
         self.regexes: RegexHandler = RegexHandler()
@@ -126,7 +127,7 @@ class Bot(EventHandler):
         if len(message.text) > 1 and message.text[0] == self.command_prefix:
             result = await self.commands.handle_command(message)
             if isinstance(result, str):
-                await self.session.reply(message, result)
+                await self.session.messages.reply(message, result)
         await self.regexes.handle_regex(message)
 
     async def on_message_edit(self, message: Message):
@@ -140,9 +141,9 @@ class Bot(EventHandler):
 
     def command(self,
                 name: str = '',
-                names: list[str] = None,
+                names: Optional[list[str]] = None,
                 access_level: AccessLevel = AccessLevel.USER,
-                message_if_deny: str = None,
+                message_if_deny: Optional[str] = None,
                 use_doc=False):
         """
         Decorator, that converts function to the Command-object
@@ -155,7 +156,7 @@ class Bot(EventHandler):
             use_doc:
         """
 
-        def wrapper(func: Callable[[...], Awaitable] | Callable[[...], str | None]) -> 'Command':
+        def wrapper(func: Callable[[None], Awaitable] | Callable[[None], str | None]) -> 'Command':
             """
 
             Args:
@@ -188,9 +189,9 @@ class Command:
     """
 
     def __init__(self,
-                 func: Callable[[...], Awaitable] | Callable[[...], str | None],
-                 name: str = None,
-                 aliases: list[str] = None,
+                 func: Callable[[Any], Awaitable] | Callable[[Any], str | None],
+                 name: str | None = None,
+                 aliases: list[str] | None = None,
                  access_level: AccessLevel = AccessLevel.USER,
                  message_if_deny: str = 'Access denied',
                  use_doc: bool = False,
@@ -205,14 +206,13 @@ class Command:
         """
         self.bot_admin = 0
         if aliases is None:
-            aliases: list[str] = []
+            aliases = []
         if name is None or name == '':
             self.name = func.__name__
         else:
             self.name = name
         update_wrapper(self, func)
         self.message_if_deny = message_if_deny
-        self._func = func
         self.aliases = aliases
         self.access_level = access_level
         parser = ArgumentParser(description=f'Command {self.name}', exit_on_error=False)
@@ -237,7 +237,10 @@ class Command:
                                       )
             # print(arg)
         # parser.print_help(sys.stdout)
-        self.__is_coroutine = asyncio.iscoroutinefunction(func)
+        if asyncio.iscoroutinefunction(func):
+            self._func_async = func
+        else:
+            self._func_sync = func
         self.parser = parser
         self.names = [self.name, *self.aliases]
         self.help = self._convert_signature_to_help(use_doc)
@@ -252,30 +255,34 @@ class Command:
         Returns:
 
         """
-        if message.sender.id == self.bot_admin:
-            user_access_level = AccessLevel.BOT_ADMIN
-        elif isinstance(message.chat, PrivateChat) or message.sender in message.chat.admins:
-            user_access_level = AccessLevel.ADMIN
-        else:
-            user_access_level = AccessLevel.USER
+        user_access_level = self._get_access_level(message)
         return user_access_level >= self.access_level
 
+    def _get_access_level(self, message: Message) -> AccessLevel:
+        chat = message.chat
+        if message.sender.id == self.bot_admin:
+            return AccessLevel.BOT_ADMIN
+        if isinstance(chat, Conversation) and message.sender in chat.admins:
+            return AccessLevel.ADMIN
+        return AccessLevel.USER
+
     async def __call__(self, message: Message) -> str | None:
+        result: str | None = None
         if self._check_permissions(message):
             try:
                 # self.parser.print_help(sys.stdout)
                 args = vars(self.parser.parse_args(shlex.split(message.text)[1:]))
                 if self._use_message:
                     args['message'] = message
-                if self.__is_coroutine:
-                    result = await self._func(**args)
-                else:
-                    result = self._func(**args)
-                return result
+                if self._func_async is not None:
+                    result = await self._func_async(**args)
+                elif self._func_sync:
+                    result = self._func_sync(**args)
             except SystemExit:
-                return f'Invalid arguments for command {self.name}'
+                result = f'Invalid arguments for command {self.name}'
         elif self.message_if_deny:
-            return self.message_if_deny
+            result = self.message_if_deny
+        return result
 
     def _convert_signature_to_help(self, use_doc: bool = False) -> str:
         """
@@ -303,7 +310,7 @@ class Command:
         if use_doc and self.__doc__ is not None:
             documentation = docstring_parser.parse(self.__doc__)
         else:
-            documentation = False
+            documentation = ''
         res = f'Команда: {self.name}\n'
         if documentation:
             res += f'{documentation.short_description}\n'
@@ -366,7 +373,7 @@ class CommandHandler:
 
 
 class Regex:
-    def __init__(self, func: Callable[[Message], Awaitable], regular_expression: str):
+    def __init__(self, func: Callable[[Message], Awaitable[None]], regular_expression: str):
         self.regex = re.compile(regular_expression)
         update_wrapper(self, func)
         self._func = func

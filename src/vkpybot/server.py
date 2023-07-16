@@ -3,14 +3,13 @@ import json
 import logging
 import os
 from abc import ABC, abstractmethod
-from typing import AsyncIterable, Dict
+from typing import AsyncIterable, Dict, Coroutine
 
 from aiohttp import web
 
 from vkpybot.events import EventHandler, EventType
-from vkpybot.sessions import GroupSession
+from vkpybot.session import GroupSession
 from vkpybot.types import Message
-from vkpybot.utils import get
 
 
 class EventServer(ABC):
@@ -19,20 +18,20 @@ class EventServer(ABC):
         self.listeners: list[EventHandler] = []
         self.tasks: list[asyncio.Task] = []
 
-    def create_task(self, coroutine):
+    def create_task(self, coroutine: Coroutine):
         self.tasks.append(task := asyncio.create_task(coroutine))
         return task
 
     def bind_listener(self, listener: EventHandler):
         self.listeners.append(listener)
 
-    async def _notify_listeners(self, event_dict):
-        event, context = await self.parse_event(event_dict)
+    async def _notify_listeners(self, event: dict):
+        event, context = await self.parse_event(event)
         for listener in self.listeners:
             await listener(event, **context)
 
-    def notify_listeners(self, event_dict):
-        self.create_task(self._notify_listeners(event_dict))
+    def notify_listeners(self, event: dict):
+        self.create_task(self._notify_listeners(event))
 
     async def parse_event(self, event) -> tuple[EventType, dict]:
         event_type: EventType = EventType[event['type'].upper()]
@@ -40,14 +39,14 @@ class EventServer(ABC):
         match event_type:
             case EventType.MESSAGE_NEW:
                 message_dict = event['object']['message']
-                _wait_user = asyncio.create_task(self.vk_session.get_user(message_dict['from_id']))
-                _wait_chat = asyncio.create_task(self.vk_session.get_chat(message_dict['peer_id']))
+                _wait_user = asyncio.create_task(self.vk_session.users.get(message_dict['from_id']))
+                _wait_chat = asyncio.create_task(self.vk_session.chats.get(message_dict['peer_id']))
                 message_dict['sender'], message_dict['chat'] = await asyncio.gather(_wait_user, _wait_chat)
                 context |= {'message': Message(message_dict, session=self.vk_session),
                             'client_info': event['object']['client_info']}
             case EventType.MESSAGE_TYPING_STATE:
                 context['state'] = event['object']['state']
-                context['sender'] = await self.vk_session.get_user(event['object']['from_id'])
+                context['sender'] = await self.vk_session.users.get(event['object']['from_id'])
         return event_type, context
 
     @abstractmethod
@@ -100,7 +99,9 @@ class YandexCloudFunction(EventServer):
         self.handler = hello_post
 
     def listen(self):
-        pass
+        # TODO: find a way for not do that
+        # there shouldn't be any method, that must be implemented, but also there is no way to do that
+        raise NotImplementedError('YCF event server could not be used for listening events')
 
 
 class LongPollServer(EventServer):
@@ -110,7 +111,7 @@ class LongPollServer(EventServer):
         self.key = key
         self.ts = ts
 
-    async def check(self) -> AsyncIterable[tuple[EventType, Dict]]:
+    async def check(self) -> AsyncIterable[dict]:
         """
         Checks for new events on long_poll_server, updates long_poll_server information if failed to get events
 
@@ -118,15 +119,15 @@ class LongPollServer(EventServer):
             tuple
                 event and context dictionary
         """
-        result = None
+        result = {}
         retries = 0
-        while result is None:
+        while not result:
             try:
                 params = {'act': 'a_check',
                           'key': self.key,
                           'ts': self.ts,
                           'wait': 25}
-                result = await get(self.server, params)
+                result = await self.vk_session._connection._async_session.get(self.server, params=params)
             except Exception:
                 logging.exception(f'try {(retries := retries + 1)}')
 
@@ -142,7 +143,7 @@ class LongPollServer(EventServer):
                 logging.error(f'Unexpected error_code code: {error_code} in {result}')
         else:
             self.ts = result['ts']
-            events = result['updates']
+            events: list[dict] = result['updates']
             for event in events:
                 yield event
 

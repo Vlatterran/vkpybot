@@ -2,16 +2,18 @@ import datetime
 import functools
 import typing
 
+from vkpybot.protocols import User, Message, Object
+
 if typing.TYPE_CHECKING:
-    from sessions import Session
+    from session import Session
 
 
-class VKObject:
+class VKObject(Object):
     def __init__(self, *, session: 'Session'):
         self._session = session
 
 
-class User(VKObject):
+class User(VKObject, User):
     """
     Represent user from VK_API
     """
@@ -59,17 +61,17 @@ class Chat(VKObject):
 
     def send(self,
              text: str = '',
-             attachments: list = None,
-             forward_message: dict = None,
+             attachments: list | None  = None,
+             forward_message: dict | None = None,
              sticker: int | None = None):
-        return self._session.send_message(self, text, attachments, forward_message, sticker)
+        return self._session.messages.send(self, text, attachments, forward_message, sticker)
 
     def forward(self,
                 messages: list['Message'],
                 text: str = '',
                 attachments: list | None = None,
                 sticker: int | None = None):
-        return self._session.forward(messages, self, text, attachments, sticker)
+        return self._session.messages.forward(messages, self, text, attachments, sticker)
 
 
 class PrivateChat(Chat):
@@ -98,7 +100,7 @@ class Conversation(Chat):
         return f'<Conversation "{self.title}" (id: {self.id})>'
 
 
-class Message(VKObject):
+class Message(VKObject, Message):
     """
     Representing existing message from VK_API
 
@@ -110,13 +112,13 @@ class Message(VKObject):
         self.text: str = msg['text']
         self.sender: User = msg['sender']
         self.chat: Chat = msg['chat']
-        self.conversation_message_id: int = int(msg['conversation_message_id'])
+        self.id: int = int(msg['conversation_message_id'])
 
     def reply(self,
-              text: str = '',
+              text: str | None = '',
               attachments: list | None = None,
               sticker: int | None = None):
-        return self._session.reply(self, text, attachments, sticker)
+        pass
 
     def __str__(self):
         in_chat = f"{self.chat}" if isinstance(self.chat, Conversation) else ""
